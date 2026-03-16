@@ -16,7 +16,7 @@ Developer PR → CI Trigger → Diff Analyzer (Step 1)
 | Component   | Tech                                      |
 | ----------- | ----------------------------------------- |
 | Backend API | FastAPI + uvicorn + uvloop                |
-| LLM         | Ollama `granite4:latest` (AsyncClient) |
+| LLM         | Ollama `granite4:3b` (AsyncClient) |
 | Embeddings  | Ollama `bge-m3`                         |
 | Vector DB   | ChromaDB (persistent, cosine similarity)  |
 | Test runner | Playwright (TypeScript)                   |
