@@ -1,0 +1,355 @@
+{
+  "run_id": "07e2cbe9-82ca-44f7-a818-183ba0872c5e",
+  "label": "Test Pipeline again",
+  "started_at": "2026-03-14T21:35:20.818877",
+  "completed_at": "2026-03-14T21:36:08.515314",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "382ba846-c539-4e57-a52a-80d09992f66b",
+        "title": "Trigger a new pipeline run and verify queued status",
+        "category": "happy_path",
+        "description": "Verify that a POST request to the pipeline run endpoint successfully initializes a run and returns a unique run_id.",
+        "preconditions": [
+          "API service is running"
+        ],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Response status should be 202 and contain 'run_id' and 'status': 'queued'"
+          }
+        ],
+        "expected_result": "A 202 Accepted response is returned with a valid UUID run_id.",
+        "tags": [
+          "API",
+          "pipeline",
+          "smoke"
+        ]
+      },
+      {
+        "id": "55d842e9-742d-4316-854b-94fd9e6f38c3",
+        "title": "Monitor pipeline run progress via SSE stream",
+        "category": "happy_path",
+        "description": "Verify that the client can connect to the SSE stream using the run_id returned from the start-run endpoint.",
+        "preconditions": [
+          "A pipeline run has been successfully queued"
+        ],
+        "steps": [
+          {
+            "action": "get",
+            "selector": null,
+            "value": "/api/pipeline/status/{run_id}",
+            "assertion": "Response header Content-Type should be 'text/event-stream'"
+          }
+        ],
+        "expected_result": "The server establishes a persistent connection for event streaming.",
+        "tags": [
+          "API",
+          "SSE",
+          "real-time"
+        ]
+      },
+      {
+        "id": "2acee01d-02c2-461a-a47b-76dfb751eff7",
+        "title": "Verify newly started run appears in the reports list",
+        "category": "happy_path",
+        "description": "Check that the run initiated via the pipeline route is visible in the reports summary list.",
+        "preconditions": [
+          "A pipeline run has been initiated"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/reports",
+            "assertion": "URL should resolve to reports view"
+          },
+          {
+            "action": "locator_assertion",
+            "selector": "page.get_by_role('cell', name=run_id)",
+            "value": "visible",
+            "assertion": "The run_id should be present in the report table"
+          }
+        ],
+        "expected_result": "The UI displays the newly created run in the list of reports.",
+        "tags": [
+          "UI",
+          "integration"
+        ]
+      },
+      {
+        "id": "799a8210-e524-435c-ae60-39f89aa5e50b",
+        "title": "Handle invalid pipeline run request payload",
+        "category": "negative",
+        "description": "Ensure the API returns a validation error when the POST body is malformed or missing required fields.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Response status should be 422 Unprocessable Entity"
+          }
+        ],
+        "expected_result": "API rejects the request with a detailed error message regarding the payload schema.",
+        "tags": [
+          "API",
+          "validation"
+        ]
+      },
+      {
+        "id": "a5cace81-178f-4516-af1a-71feeb297f89",
+        "title": "Request non-existent report details",
+        "category": "negative",
+        "description": "Verify that requesting details for a run_id that does not exist returns a 404 error.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "get",
+            "selector": null,
+            "value": "/api/reports/non-existent-uuid",
+            "assertion": "Response status should be 404 Not Found"
+          }
+        ],
+        "expected_result": "The application handles missing report files gracefully.",
+        "tags": [
+          "API",
+          "error-handling"
+        ]
+      },
+      {
+        "id": "a95347e3-38fb-4c93-a497-f517d3955362",
+        "title": "List reports when the reports directory is empty",
+        "category": "edge_case",
+        "description": "Verify the behavior of the list_reports function when no JSON files are present in the reports directory.",
+        "preconditions": [
+          "Clean the configured REPORTS_DIR of all .json files"
+        ],
+        "steps": [
+          {
+            "action": "get",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "Response should be an empty list []"
+          }
+        ],
+        "expected_result": "API returns an empty array with a 200 OK status.",
+        "tags": [
+          "API",
+          "boundary"
+        ]
+      },
+      {
+        "id": "109287a1-7b45-4c79-92fa-e52f70684857",
+        "title": "Handle corrupted JSON report files in reports directory",
+        "category": "edge_case",
+        "description": "Verify that the API does not crash and continues to return valid reports when one report file is malformed.",
+        "preconditions": [
+          "One valid .json report and one corrupted (invalid syntax) .json file exist in the reports directory"
+        ],
+        "steps": [
+          {
+            "action": "get",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "The list should contain the valid report and exclude the corrupted one"
+          }
+        ],
+        "expected_result": "The API logs a warning for the corrupted file but successfully returns the list of valid reports.",
+        "tags": [
+          "API",
+          "resilience"
+        ]
+      },
+      {
+        "id": "7289850f-982b-4497-a149-95938b854b03",
+        "title": "Prevent script injection through pipeline label",
+        "category": "security",
+        "description": "Ensure that labels containing script tags are properly handled and do not execute in the UI.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Payload contains label: <script>alert('xss')</script>"
+          },
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/reports",
+            "assertion": null
+          },
+          {
+            "action": "locator_assertion",
+            "selector": "page.get_by_text('<script>alert('xss')</script>')",
+            "value": "visible",
+            "assertion": "Text should be rendered literally, no alert dialog should appear"
+          }
+        ],
+        "expected_result": "The script tag is rendered as plain text or sanitized, preventing XSS.",
+        "tags": [
+          "security",
+          "XSS"
+        ]
+      },
+      {
+        "id": "7190fba2-5c7d-4539-a009-440758744c34",
+        "title": "Check for Path Traversal in report retrieval",
+        "category": "security",
+        "description": "Verify that the API prevents access to files outside the reports directory using relative path segments.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "get",
+            "selector": null,
+            "value": "/api/reports/..%2F..%2Fetc%2Fpasswd",
+            "assertion": "Response status should be 404 or 422"
+          }
+        ],
+        "expected_result": "The application rejects paths containing traversal patterns.",
+        "tags": [
+          "security",
+          "traversal"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T21:35:40.448727",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_pipeline_reports.py",
+      "content": "import os\nimport pytest\nfrom playwright.sync_api import Page, expect\n\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\n\n# SCENARIO_ID: 382ba846-c539-4e57-a52a-80d09992f66b\ndef test_trigger_new_pipeline_run_returns_queued_status(page: Page):\n    \"\"\"Verify that a POST request to the pipeline run endpoint successfully initializes a run.\"\"\"\n    api_url = f\"{BASE_URL}/api/pipeline/run\"\n    payload = {\"label\": \"smoke-test-run\", \"config\": {}}\n    \n    response = page.request.post(api_url, data=payload)\n    \n    expect(response).to_be_ok() # status 200-299\n    assert response.status == 202\n    \n    body = response.json()\n    assert \"run_id\" in body\n    assert body[\"status\"] == \"queued\"\n\n# SCENARIO_ID: 55d842e9-742d-4316-854b-94fd9e6f38c3\ndef test_monitor_pipeline_run_progress_via_sse_stream(page: Page):\n    \"\"\"Verify client can connect to the SSE stream using the run_id.\"\"\"\n    # First, trigger a run to get a valid run_id\n    run_response = page.request.post(f\"{BASE_URL}/api/pipeline/run\", data={\"label\": \"sse-test\"})\n    run_id = run_response.json().get(\"run_id\")\n    \n    # Connect to status stream\n    status_url = f\"{BASE_URL}/api/pipeline/status/{run_id}\"\n    response = page.request.get(status_url)\n    \n    expect(response).to_be_ok()\n    assert \"text/event-stream\" in response.headers.get(\"content-type\", \"\")\n\n# SCENARIO_ID: 2acee01d-02c2-461a-a47b-76dfb751eff7\ndef test_newly_started_run_appears_in_reports_list_ui(page: Page):\n    \"\"\"Check that the run initiated via API is visible in the UI reports table.\"\"\"\n    # Trigger a run via API\n    run_response = page.request.post(f\"{BASE_URL}/api/pipeline/run\", data={\"label\": \"ui-visibility-test\"})\n    run_id = run_response.json().get(\"run_id\")\n    \n    # Navigate to UI\n    page.goto(f\"{BASE_URL}/reports\")\n    \n    # Use run_id as the name for the cell locator\n    report_cell = page.get_by_role(\"cell\", name=run_id)\n    expect(report_cell).to_be_visible()\n\n# SCENARIO_ID: 799a8210-e524-435c-ae60-39f89aa5e50b\ndef test_handle_invalid_pipeline_run_payload_returns_422(page: Page):\n    \"\"\"Ensure the API returns a validation error when the POST body is malformed.\"\"\"\n    api_url = f\"{BASE_URL}/api/pipeline/run\"\n    # Send invalid payload (e.g., missing required fields or wrong type)\n    response = page.request.post(api_url, data={\"invalid_field\": \"data\"})\n    \n    assert response.status == 422\n\n# SCENARIO_ID: a5cace81-178f-4516-af1a-71feeb297f89\ndef test_request_non_existent_report_returns_404(page: Page):\n    \"\"\"Verify that requesting details for a non-existent run_id returns 404.\"\"\"\n    invalid_run_id = \"00000000-0000-0000-0000-000000000000\"\n    response = page.request.get(f\"{BASE_URL}/api/reports/{invalid_run_id}\")\n    \n    assert response.status == 404\n\n# SCENARIO_ID: a95347e3-38fb-4c93-a497-f517d3955362\ndef test_list_reports_when_directory_is_empty(page: Page):\n    \"\"\"Verify behavior when no reports are present.\"\"\"\n    # Note: This test assumes an environment where reports can be cleared or isolated\n    response = page.request.get(f\"{BASE_URL}/api/reports\")\n    \n    expect(response).to_be_ok()\n    assert isinstance(response.json(), list)\n\n# SCENARIO_ID: 109287a1-7b45-4c79-92fa-e52f70684857\ndef test_handle_corrupted_json_report_files_gracefully(page: Page):\n    \"\"\"Verify API returns valid reports even if some disk files are corrupted.\"\"\"\n    response = page.request.get(f\"{BASE_URL}/api/reports\")\n    \n    expect(response).to_be_ok()\n    reports = response.json()\n    # Ensure the result is a list (even if filtered)\n    assert isinstance(reports, list)\n\n# SCENARIO_ID: 7289850f-982b-4497-a149-95938b854b03\ndef test_prevent_script_injection_through_pipeline_label(page: Page):\n    \"\"\"Ensure script tags are rendered as plain text in the UI (XSS Protection).\"\"\"\n    xss_payload = \"<script>alert('xss')</script>\"\n    \n    # Trigger run with malicious label\n    page.request.post(f\"{BASE_URL}/api/pipeline/run\", data={\"label\": xss_payload})\n    \n    # Navigate to reports page\n    page.goto(f\"{BASE_URL}/reports\")\n    \n    # Verify the text is rendered literally in the UI\n    script_text = page.get_by_text(xss_payload)\n    expect(script_text).to_be_visible()\n    \n    # Verification that no dialog appeared (dialogs auto-dismiss in Playwright unless handled)\n    # but 'expect' visibility of literal text is the primary check for sanitization.\n\n# SCENARIO_ID: 7190fba2-5c7d-4539-a009-440758744c34\ndef test_path_traversal_prevention_in_report_retrieval(page: Page):\n    \"\"\"Verify API prevents access to sensitive files using path traversal.\"\"\"\n    traversal_path = \"..%2F..%2Fetc%2Fpasswd\"\n    response = page.request.get(f\"{BASE_URL}/api/reports/{traversal_path}\")\n    \n    # The application should reject the malformed/unsafe path with 404 or 422\n    assert response.status in [404, 422]\n",
+      "scenario_ids": [
+        "382ba846-c539-4e57-a52a-80d09992f66b",
+        "55d842e9-742d-4316-854b-94fd9e6f38c3",
+        "2acee01d-02c2-461a-a47b-76dfb751eff7",
+        "799a8210-e524-435c-ae60-39f89aa5e50b",
+        "a5cace81-178f-4516-af1a-71feeb297f89",
+        "a95347e3-38fb-4c93-a497-f517d3955362",
+        "109287a1-7b45-4c79-92fa-e52f70684857",
+        "7289850f-982b-4497-a149-95938b854b03",
+        "7190fba2-5c7d-4539-a009-440758744c34"
+      ],
+      "generated_at": "2026-03-14T21:35:55.598671"
+    }
+  ],
+  "execution_results": [
+    {
+      "test_title": "test_trigger_new_pipeline_run_returns_queued_status[chromium]",
+      "spec_file": "generated_tests/07e2cbe9-82ca-44f7-a818-183ba0872c5e/test_pipeline_reports.py",
+      "status": "failed",
+      "duration_ms": 318,
+      "error_message": "AssertionError: Response status expected to be within [200..299] range, was '422'\nCall log:\n→ POST http://localhost:8000/api/pipeline/run\n  user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36\n  accept: */*\n  accept-encoding: gzip,deflate,br\n  content-type: application/json\n  content-length: 41\n← 422 Unprocessable Content\n  date: Sat, 14 Mar 2026 21:35:56 GMT\n  server: uvicorn\n  content-length: 128\n  content-type: application/json\n\n Response Text:\n{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"diff_text\"],\"msg\":\"Field required\",\"input\":{\"label\":\"smoke-test-run\",\"config\":{}}}]}",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_monitor_pipeline_run_progress_via_sse_stream[chromium]",
+      "spec_file": "generated_tests/07e2cbe9-82ca-44f7-a818-183ba0872c5e/test_pipeline_reports.py",
+      "status": "failed",
+      "duration_ms": 5,
+      "error_message": "AssertionError: Response status expected to be within [200..299] range, was '404'\nCall log:\n→ GET http://localhost:8000/api/pipeline/status/None\n  user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/145.0.7632.6 Safari/537.36\n  accept: */*\n  accept-encoding: gzip,deflate,br\n← 404 Not Found\n  date: Sat, 14 Mar 2026 21:35:56 GMT\n  server: uvicorn\n  content-length: 55\n  content-type: application/json\n\n Response Text:\n{\"detail\":\"Run 'None' not found or already completed.\"}",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_newly_started_run_appears_in_reports_list_ui[chromium]",
+      "spec_file": "generated_tests/07e2cbe9-82ca-44f7-a818-183ba0872c5e/test_pipeline_reports.py",
+      "status": "failed",
+      "duration_ms": 5026,
+      "error_message": "AssertionError: Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for get_by_role(\"cell\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_handle_invalid_pipeline_run_payload_returns_422[chromium]",
+      "spec_file": "generated_tests/07e2cbe9-82ca-44f7-a818-183ba0872c5e/test_pipeline_reports.py",
+      "status": "passed",
+      "duration_ms": 305,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_request_non_existent_report_returns_404[chromium]",
+      "spec_file": "generated_tests/07e2cbe9-82ca-44f7-a818-183ba0872c5e/test_pipeline_reports.py",
+      "status": "passed",
+      "duration_ms": 3,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_list_reports_when_directory_is_empty[chromium]",
+      "spec_file": "generated_tests/07e2cbe9-82ca-44f7-a818-183ba0872c5e/test_pipeline_reports.py",
+      "status": "passed",
+      "duration_ms": 7,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_handle_corrupted_json_report_files_gracefully[chromium]",
+      "spec_file": "generated_tests/07e2cbe9-82ca-44f7-a818-183ba0872c5e/test_pipeline_reports.py",
+      "status": "passed",
+      "duration_ms": 3,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_prevent_script_injection_through_pipeline_label[chromium]",
+      "spec_file": "generated_tests/07e2cbe9-82ca-44f7-a818-183ba0872c5e/test_pipeline_reports.py",
+      "status": "failed",
+      "duration_ms": 5009,
+      "error_message": "AssertionError: Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for get_by_text(\"<script>alert('xss')</script>\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_path_traversal_prevention_in_report_retrieval[chromium]",
+      "spec_file": "generated_tests/07e2cbe9-82ca-44f7-a818-183ba0872c5e/test_pipeline_reports.py",
+      "status": "passed",
+      "duration_ms": 307,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    }
+  ],
+  "heal_results": [],
+  "error": null
+}

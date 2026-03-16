@@ -1,0 +1,30 @@
+{
+  "run_id": "10b0a7f2-de36-482f-bac1-dcff3520a638",
+  "label": "health feature",
+  "started_at": "2026-03-14T14:15:30.362130",
+  "completed_at": null,
+  "status": "failed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/health.py",
+        "change_type": "modified",
+        "additions": 8,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/health.py b/app/api/routes/health.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/health.py\n+++ b/app/api/routes/health.py\n@@ -7,12 +7,16 @@\n from __future__ import annotations\n \n import httpx\n+import time\n+from datetime import datetime\n \n from fastapi import APIRouter\n \n from app.core.config import get_settings\n from app.core.logging import get_logger\n from app.rag.vector_store import ChromaStore\n+\n+START_TIME = time.time()\n \n logger = get_logger(__name__)\n router = APIRouter(prefix=\"/api/health\", tags=[\"health\"])\n@@ -47,11 +51,14 @@\n         logger.warning(\"ChromaDB health check failed: %s\", exc)\n \n     status = \"ok\" if (ollama_ok and chroma_ok) else \"degraded\"\n+    uptime_seconds = int(time.time() - START_TIME)\n+    \n     return {\n         \"status\": status,\n         \"ollama\": ollama_ok,\n         \"chromadb\": chroma_ok,\n         \"llm_model\": settings.OLLAMA_LLM_MODEL,\n         \"embed_model\": settings.OLLAMA_EMBED_MODEL,\n+        \"uptime\": f\"{uptime_seconds}s\",\n+        \"server_time\": datetime.now().isoformat(),\n     }"
+      }
+    ],
+    "summary": "Changed 1 file(s): health.py",
+    "total_additions": 8,
+    "total_deletions": 0,
+    "affected_routes": [],
+    "affected_components": []
+  },
+  "scenario_list": null,
+  "generated_specs": [],
+  "execution_results": [],
+  "heal_results": [],
+  "error": "ChromaDB query failed: Error executing plan: Internal error: Error creating hnsw segment reader: Nothing found on disk"
+}

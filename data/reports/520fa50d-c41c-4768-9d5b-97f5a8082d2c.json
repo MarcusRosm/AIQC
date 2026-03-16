@@ -1,0 +1,280 @@
+{
+  "run_id": "520fa50d-c41c-4768-9d5b-97f5a8082d2c",
+  "label": "Pipeline test",
+  "started_at": "2026-03-15T13:56:24.327682",
+  "completed_at": "2026-03-15T13:57:04.259137",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "04b1e161-5cbd-466f-822c-77b9851252d7",
+        "title": "Successfully trigger a new pipeline run via API",
+        "category": "happy_path",
+        "description": "Verify that a POST request to the pipeline run endpoint initiates the background process and returns a 202 status code.",
+        "preconditions": [
+          "The application server is running",
+          "Valid diff text is available"
+        ],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Response status is 202 and contains a 'run_id'"
+          },
+          {
+            "action": "JSON Body",
+            "selector": null,
+            "value": "{\"run_label\": \"Feature Test\", \"diff_text\": \"diff --git a/file.txt b/file.txt\\n--- a/file.txt\\n+++ b/file.txt\\n@@ -1 +1 @@\\n-old\\n+new\"}",
+            "assertion": "run_id matches UUID format"
+          }
+        ],
+        "expected_result": "The pipeline starts in the background and returns a valid run_id for tracking.",
+        "tags": [
+          "api",
+          "pipeline",
+          "smoke"
+        ]
+      },
+      {
+        "id": "beecaaab-326b-4203-8444-5ac5149a35a2",
+        "title": "Verify SSE status stream for an active run",
+        "category": "happy_path",
+        "description": "Ensure the client can connect to the SSE endpoint and receive PipelineEvents.",
+        "preconditions": [
+          "A pipeline run has been initiated and run_id is known"
+        ],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/pipeline/status/{run_id}",
+            "assertion": "Response header 'Content-Type' is 'text/event-stream'"
+          },
+          {
+            "action": "Listen to Events",
+            "selector": null,
+            "value": "SSE Connection",
+            "assertion": "Received 'STARTED' and 'DIFF_ANALYZED' stages"
+          }
+        ],
+        "expected_result": "Server streams real-time updates of the pipeline progression.",
+        "tags": [
+          "api",
+          "sse",
+          "real-time"
+        ]
+      },
+      {
+        "id": "bba5a6e8-6d61-4d96-ae3a-0a3b03a68833",
+        "title": "List completed pipeline reports in UI",
+        "category": "happy_path",
+        "description": "Check that the reports list correctly displays the summary of recent runs.",
+        "preconditions": [
+          "At least one report exists in the REPORTS_DIR"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/reports",
+            "assertion": "URL contains /reports"
+          },
+          {
+            "action": "find_element",
+            "selector": "page.get_by_role('listitem')",
+            "value": null,
+            "assertion": "At least one report summary is visible"
+          }
+        ],
+        "expected_result": "The user sees a list of historical pipeline runs sorted by newest first.",
+        "tags": [
+          "ui",
+          "reports"
+        ]
+      },
+      {
+        "id": "ec1903ed-d4c9-4acf-abe2-3aa1380372a1",
+        "title": "Trigger run with missing required fields",
+        "category": "negative",
+        "description": "Verify the API handles missing 'diff_text' gracefully.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Status code is 422 Unprocessable Entity"
+          },
+          {
+            "action": "JSON Body",
+            "selector": null,
+            "value": "{\"run_label\": \"Incomplete Run\"}",
+            "assertion": "Error message indicates missing diff_text"
+          }
+        ],
+        "expected_result": "Validation error is returned and no run is initialized.",
+        "tags": [
+          "api",
+          "validation"
+        ]
+      },
+      {
+        "id": "3b9d0cd2-48a0-441f-895c-fa61945faf9b",
+        "title": "Attempt to retrieve non-existent report detail",
+        "category": "negative",
+        "description": "Ensure a 404 is returned when querying a run_id that does not exist.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports/00000000-0000-0000-0000-000000000000",
+            "assertion": "Status code is 404 Not Found"
+          }
+        ],
+        "expected_result": "API returns a structured error message for missing resources.",
+        "tags": [
+          "api",
+          "error-handling"
+        ]
+      },
+      {
+        "id": "f4bea069-2560-4c34-83cb-6d96bc4bfd28",
+        "title": "Concurrent pipeline execution handling",
+        "category": "edge_case",
+        "description": "Simulate multiple simultaneous pipeline requests.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "Parallel POST",
+            "selector": null,
+            "value": "5 concurrent requests to /api/pipeline/run",
+            "assertion": "All 5 requests receive 202 status and unique run_ids"
+          }
+        ],
+        "expected_result": "The system initializes multiple background tasks without resource deadlock.",
+        "tags": [
+          "performance",
+          "concurrency"
+        ]
+      },
+      {
+        "id": "6cd233e2-f27e-4ebe-b7d2-426de1fefb88",
+        "title": "Pipeline run with extremely large diff text",
+        "category": "edge_case",
+        "description": "Test the limits of the diff analyzer with a multi-megabyte payload.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "System handles large payload without crashing"
+          }
+        ],
+        "expected_result": "System either processes the diff or returns a 413 Payload Too Large error.",
+        "tags": [
+          "edge_case",
+          "payload-limit"
+        ]
+      },
+      {
+        "id": "8d5397bc-ade8-4366-b7ff-b96750179486",
+        "title": "Input validation for malicious payload in run_label",
+        "category": "security",
+        "description": "Check for XSS vulnerabilities in the run_label field which is displayed in reports.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Request accepted"
+          },
+          {
+            "action": "JSON Body",
+            "selector": null,
+            "value": "{\"run_label\": \"<script>alert('xss')</script>\", \"diff_text\": \"valid diff\"}",
+            "assertion": "Label is stored/escaped safely"
+          },
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/reports",
+            "assertion": "Label text is displayed as literal, no script execution occurs"
+          }
+        ],
+        "expected_result": "The application sanitizes or escapes user input in the reports view.",
+        "tags": [
+          "security",
+          "xss",
+          "owasp"
+        ]
+      },
+      {
+        "id": "5b42c83d-7dff-4016-8899-bf1d253f3305",
+        "title": "Direct access to internal reports directory mapping",
+        "category": "security",
+        "description": "Attempt to access reports outside the intended directory via path traversal.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports/../../etc/passwd",
+            "assertion": "Status code is 404 or 400"
+          }
+        ],
+        "expected_result": "The API logic strictly validates path segments or uses Path objects to prevent traversal.",
+        "tags": [
+          "security",
+          "traversal"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-15T13:56:38.968939",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_generated.py",
+      "content": "import os\nimport re\nimport pytest\nfrom concurrent.futures import ThreadPoolExecutor\nfrom playwright.sync_api import Page, APIRequestContext, expect\n\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\n\n# SCENARIO_ID: 04b1e161-5cbd-466f-822c-77b9851252d7\ndef test_successfully_trigger_new_pipeline_run_via_api(page: Page):\n    \"\"\"Verify that a POST request to the pipeline run endpoint initiates the process.\"\"\"\n    diff_content = \"\"\"diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-old\n+new\"\"\"\n    \n    payload = {\n        \"run_label\": \"Feature Test\",\n        \"diff_text\": diff_content\n    }\n    \n    response = page.request.post(f\"{BASE_URL}/api/pipeline/run\", data=payload)\n    \n    expect(response).to_be_ok()\n    assert response.status == 202\n    \n    body = response.json()\n    assert \"run_id\" in body\n    # Verify UUID format\n    assert re.match(r\"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\", body[\"run_id\"])\n\n# SCENARIO_ID: beecaaab-326b-4203-8444-5ac5149a35a2\ndef test_verify_sse_status_stream_for_active_run(page: Page):\n    \"\"\"Ensure the client can connect to the SSE endpoint and receive events.\"\"\"\n    # 1. Create a run to get a run_id\n    setup_response = page.request.post(\n        f\"{BASE_URL}/api/pipeline/run\", \n        data={\"run_label\": \"SSE Test\", \"diff_text\": \"valid diff\"}\n    )\n    run_id = setup_response.json()[\"run_id\"]\n    \n    # 2. Check SSE endpoint headers\n    # Note: APIRequestContext.get waits for the stream to finish/timeout. \n    # We primarily verify the connection type here.\n    response = page.request.get(f\"{BASE_URL}/api/pipeline/status/{run_id}\")\n    \n    assert response.headers.get(\"content-type\") == \"text/event-stream\"\n    expect(response).to_be_ok()\n\n# SCENARIO_ID: bba5a6e8-6d61-4d96-ae3a-0a3b03a68833\ndef test_list_completed_pipeline_reports_in_ui(page: Page):\n    \"\"\"Check that the reports list correctly displays the summary of recent runs.\"\"\"\n    page.goto(f\"{BASE_URL}/reports\")\n    \n    expect(page).to_have_url(re.compile(r\".*/reports\"))\n    \n    # Locate the list of reports\n    reports_list_item = page.get_by_role(\"listitem\").first\n    expect(reports_list_item).to_be_visible()\n\n# SCENARIO_ID: ec1903ed-d4c9-4acf-abe2-3aa1380372a1\ndef test_trigger_run_with_missing_required_fields(page: Page):\n    \"\"\"Verify the API handles missing 'diff_text' gracefully (422).\"\"\"\n    # missing diff_text\n    payload = {\"run_label\": \"Incomplete Run\"}\n    \n    response = page.request.post(f\"{BASE_URL}/api/pipeline/run\", data=payload)\n    \n    assert response.status == 422\n    error_detail = response.json()[\"detail\"]\n    assert any(\"diff_text\" in str(err) for err in error_detail)\n\n# SCENARIO_ID: 3b9d0cd2-48a0-441f-895c-fa61945faf9b\ndef test_attempt_to_retrieve_non_existent_report_detail(page: Page):\n    \"\"\"Ensure a 404 is returned when querying a run_id that does not exist.\"\"\"\n    fake_id = \"00000000-0000-0000-0000-000000000000\"\n    response = page.request.get(f\"{BASE_URL}/api/reports/{fake_id}\")\n    \n    assert response.status == 404\n    expect(response).not_to_be_ok()\n\n# SCENARIO_ID: f4bea069-2560-4c34-83cb-6d96bc4bfd28\ndef test_concurrent_pipeline_execution_handling(page: Page):\n    \"\"\"Simulate multiple simultaneous pipeline requests.\"\"\"\n    payload = {\"run_label\": \"Concurrent Test\", \"diff_text\": \"simple diff\"}\n    \n    def make_request():\n        return page.request.post(f\"{BASE_URL}/api/pipeline/run\", data=payload)\n\n    with ThreadPoolExecutor(max_workers=5) as executor:\n        results = list(executor.map(lambda _: make_request(), range(5)))\n\n    run_ids = []\n    for res in results:\n        assert res.status == 202\n        run_id = res.json().get(\"run_id\")\n        assert run_id is not None\n        run_ids.append(run_id)\n\n    # Ensure all run_ids are unique\n    assert len(set(run_ids)) == 5\n\n# SCENARIO_ID: 6cd233e2-f27e-4ebe-b7d2-426de1fefb88\ndef test_pipeline_run_with_extremely_large_diff_text(page: Page):\n    \"\"\"Test the limits of the diff analyzer with a multi-megabyte payload.\"\"\"\n    large_diff = \"diff --git a/large.txt b/large.txt\n\" + (\"+new content line\n\" * 50000)\n    payload = {\"run_label\": \"Large Payload Test\", \"diff_text\": large_diff}\n    \n    response = page.request.post(f\"{BASE_URL}/api/pipeline/run\", data=payload)\n    \n    # Should either accept (202) or reject with 413, but not 500\n    assert response.status in [202, 413]\n    if response.status == 202:\n        assert \"run_id\" in response.json()\n\n# SCENARIO_ID: 8d5397bc-ade8-4366-b7ff-b96750179486\ndef test_input_validation_for_malicious_payload_in_run_label(page: Page):\n    \"\"\"Check for XSS vulnerabilities in the run_label field.\"\"\"\n    malicious_label = \"<script>alert('xss')</script>\"\n    payload = {\n        \"run_label\": malicious_label, \n        \"diff_text\": \"valid diff context\"\n    }\n    \n    # Trigger via API\n    api_response = page.request.post(f\"{BASE_URL}/api/pipeline/run\", data=payload)\n    expect(api_response).to_be_ok()\n\n    # Check UI sanitization\n    page.goto(f\"{BASE_URL}/reports\")\n    \n    # If properly escaped, the literal string should be visible as text, \n    # and no alert should have triggered (though Playwright handles alerts automatically).\n    # We verify the text content exists exactly as provided.\n    label_element = page.get_by_text(malicious_label)\n    expect(label_element).to_be_visible()\n\n# SCENARIO_ID: 5b42c83d-7dff-4016-8899-bf1d253f3305\ndef test_direct_access_to_internal_reports_directory_mapping(page: Page):\n    \"\"\"Attempt to access reports outside the intended directory via path traversal.\"\"\"\n    traversal_path = \"../../etc/passwd\"\n    response = page.request.get(f\"{BASE_URL}/api/reports/{traversal_path}\")\n    \n    # Security check: status should be error code, not success\n    assert response.status in [400, 404, 422]\n    expect(response).not_to_be_ok()\n",
+      "scenario_ids": [
+        "04b1e161-5cbd-466f-822c-77b9851252d7",
+        "beecaaab-326b-4203-8444-5ac5149a35a2",
+        "bba5a6e8-6d61-4d96-ae3a-0a3b03a68833",
+        "ec1903ed-d4c9-4acf-abe2-3aa1380372a1",
+        "3b9d0cd2-48a0-441f-895c-fa61945faf9b",
+        "f4bea069-2560-4c34-83cb-6d96bc4bfd28",
+        "6cd233e2-f27e-4ebe-b7d2-426de1fefb88",
+        "8d5397bc-ade8-4366-b7ff-b96750179486",
+        "5b42c83d-7dff-4016-8899-bf1d253f3305"
+      ],
+      "generated_at": "2026-03-15T13:57:03.842083"
+    }
+  ],
+  "execution_results": [],
+  "heal_results": [],
+  "error": null
+}

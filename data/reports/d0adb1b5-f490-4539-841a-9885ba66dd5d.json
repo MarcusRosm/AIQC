@@ -1,0 +1,337 @@
+{
+  "run_id": "d0adb1b5-f490-4539-841a-9885ba66dd5d",
+  "label": "Pipeline",
+  "started_at": "2026-03-14T22:45:49.620456",
+  "completed_at": null,
+  "status": "failed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "97b8f7c9-3862-4f13-a5fe-8f683e90da25",
+        "title": "Start Pipeline Run Successfully",
+        "category": "happy_path",
+        "description": "Verify that a valid pipeline run request initiates correctly and returns a run_id.",
+        "preconditions": [
+          "API server is running on localhost:8000",
+          "User is authenticated"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/dashboard",
+            "assertion": "url contains /dashboard"
+          },
+          {
+            "action": "click",
+            "selector": "get_by_role('button', { name: 'Run Pipeline' })",
+            "value": null,
+            "assertion": "modal is visible"
+          },
+          {
+            "action": "fill",
+            "selector": "get_by_label('Label')",
+            "value": "Regression Suite v1",
+            "assertion": "value is filled"
+          },
+          {
+            "action": "click",
+            "selector": "get_by_role('button', { name: 'Submit' })",
+            "value": null,
+            "assertion": "request sent to /api/pipeline/run"
+          }
+        ],
+        "expected_result": "API returns 202 Accepted with a valid UUID run_id and status queued",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run"
+        ]
+      },
+      {
+        "id": "8db60a6b-3fa1-4494-a95c-3ec145c841f0",
+        "title": "Verify Pipeline SSE Status Stream",
+        "category": "happy_path",
+        "description": "Ensure the SSE endpoint streams events for the initiated run_id.",
+        "preconditions": [
+          "Pipeline run started via POST /api/pipeline/run"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/pipeline/status/{run_id}",
+            "assertion": "connection established"
+          },
+          {
+            "action": "wait",
+            "selector": null,
+            "value": "event: PipelineEvents",
+            "assertion": "stream receives data"
+          }
+        ],
+        "expected_result": "SSE stream returns PipelineEvents until completion",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/status"
+        ]
+      },
+      {
+        "id": "f9d94183-8214-4916-b51d-16b1aee720c2",
+        "title": "Reports List Includes New Run",
+        "category": "happy_path",
+        "description": "Confirm completed run appears in the reports list.",
+        "preconditions": [
+          "Pipeline run completed successfully",
+          "Report saved to disk"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "status == 200"
+          },
+          {
+            "action": "assert",
+            "selector": null,
+            "value": "response body contains run_id",
+            "assertion": "list not empty"
+          }
+        ],
+        "expected_result": "GET /api/reports returns list containing the new run_id",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/reports"
+        ]
+      },
+      {
+        "id": "3a73eabb-838f-4bc1-ab01-e7ca11112ce5",
+        "title": "Reject Run Request Missing Label",
+        "category": "negative",
+        "description": "Validate that missing required fields return 422 error.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "click",
+            "selector": "get_by_role('button', { name: 'Run Pipeline' })",
+            "value": null,
+            "assertion": "modal opens"
+          },
+          {
+            "action": "click",
+            "selector": "get_by_role('button', { name: 'Submit' })",
+            "value": null,
+            "assertion": "validation triggered"
+          }
+        ],
+        "expected_result": "API returns 422 Unprocessable Entity due to missing label",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run"
+        ]
+      },
+      {
+        "id": "54d73283-5fe4-430d-9074-d0b2a308196d",
+        "title": "Handle Invalid JSON Body",
+        "category": "negative",
+        "description": "Ensure server handles malformed JSON gracefully.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "api_post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "status == 400"
+          }
+        ],
+        "expected_result": "API returns 400 Bad Request for malformed JSON",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run"
+        ]
+      },
+      {
+        "id": "1c5fec02-2aab-4610-bf21-26a6b0c2bb36",
+        "title": "Process Empty Test Suite",
+        "category": "edge_case",
+        "description": "Verify pipeline handles zero test cases without crashing.",
+        "preconditions": [
+          "User is authenticated"
+        ],
+        "steps": [
+          {
+            "action": "fill",
+            "selector": "get_by_label('Label')",
+            "value": "Empty Suite",
+            "assertion": "value is filled"
+          },
+          {
+            "action": "fill",
+            "selector": "get_by_placeholder('Test Cases')",
+            "value": "[]",
+            "assertion": "value is empty list"
+          },
+          {
+            "action": "click",
+            "selector": "get_by_role('button', { name: 'Submit' })",
+            "value": null,
+            "assertion": "request sent"
+          }
+        ],
+        "expected_result": "Pipeline runs successfully with test_count 0",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run"
+        ]
+      },
+      {
+        "id": "38b8fc49-813d-4577-9021-9b20c60b334f",
+        "title": "Reports Endpoint When Directory Missing",
+        "category": "edge_case",
+        "description": "Check behavior when REPORTS_DIR does not exist.",
+        "preconditions": [
+          "Reports directory renamed or deleted"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "status == 200"
+          }
+        ],
+        "expected_result": "API returns empty list [] without error",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/reports"
+        ]
+      },
+      {
+        "id": "9ad5b4a7-de84-46a2-9efd-0705014fba1a",
+        "title": "Concurrent Pipeline Run Requests",
+        "category": "edge_case",
+        "description": "Validate system stability under simultaneous run triggers.",
+        "preconditions": [
+          "Multiple clients available"
+        ],
+        "steps": [
+          {
+            "action": "parallel_post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "all return 202"
+          }
+        ],
+        "expected_result": "All requests return unique run_ids and queue successfully",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run"
+        ]
+      },
+      {
+        "id": "dab0ed0a-ed16-4268-b622-3bc943479e71",
+        "title": "XSS Payload In Label Field",
+        "category": "security",
+        "description": "Ensure label input is sanitized against script injection.",
+        "preconditions": [
+          "User is authenticated"
+        ],
+        "steps": [
+          {
+            "action": "fill",
+            "selector": "get_by_label('Label')",
+            "value": "<script>alert('xss')</script>",
+            "assertion": "value is filled"
+          },
+          {
+            "action": "click",
+            "selector": "get_by_role('button', { name: 'Submit' })",
+            "value": null,
+            "assertion": "request sent"
+          },
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "response inspected"
+          }
+        ],
+        "expected_result": "Payload is escaped or rejected; no script execution in UI",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run"
+        ]
+      },
+      {
+        "id": "f94da1c2-5926-4ebc-92b9-67c920108854",
+        "title": "Unauthorized Pipeline Start Attempt",
+        "category": "security",
+        "description": "Verify access control prevents unauthenticated runs.",
+        "preconditions": [
+          "No auth token provided"
+        ],
+        "steps": [
+          {
+            "action": "api_post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "status == 401"
+          }
+        ],
+        "expected_result": "API returns 401 Unauthorized",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T22:46:22.520570",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_generated.py",
+      "content": "import os\nimport pytest\nimport json\nimport uuid\nfrom playwright.sync_api import Page, expect\nfrom playwright.sync_api import APIRequestContext\n\n\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\n\n\n# SCENARIO_ID: 97b8f7c9-3862-4f13-a5fe-8f683e90da25\ndef test_start_pipeline_run_successfully(page: Page):\n    \"\"\"Verify that a valid pipeline run request initiates correctly and returns a run_id.\"\"\"\n    run_pipeline_btn = page.get_by_role(\"button\", name=\"Run Pipeline\")\n    label_input = page.get_by_label(\"Label\")\n    submit_btn = page.get_by_role(\"button\", name=\"Submit\")\n    \n    page.goto(f\"{BASE_URL}/dashboard\")\n    expect(page).to_have_url(f\"{BASE_URL}/dashboard\")\n    \n    run_pipeline_btn.click()\n    expect(page.locator(\".modal\")).to_be_visible()\n    \n    label_input.fill(\"Regression Suite v1\")\n    expect(label_input).to_have_value(\"Regression Suite v1\")\n    \n    submit_btn.click()\n    \n    # Verify API response was successful\n    expect(page.get_by_role(\"alert\")).to_contain_text(\"Pipeline run queued\")\n\n\n# SCENARIO_ID: 8db60a6b-3fa1-4494-a95c-3ec145c841f0\ndef test_verify_pipeline_sse_status_stream(page: Page):\n    \"\"\"Ensure the SSE endpoint streams events for the initiated run_id.\"\"\"\n    run_id = str(uuid.uuid4())\n    \n    page.goto(f\"{BASE_URL}/api/pipeline/status/{run_id}\")\n    \n    # Wait for SSE connection to be established\n    expect(page.locator(\".sse-status\")).to_contain_text(\"connected\")\n    \n    # Verify stream receives data\n    expect(page.locator(\".event-log\")).to_contain_text(\"PipelineEvents\")\n\n\n# SCENARIO_ID: f9d94183-8214-4916-b51d-16b1aee720c2\ndef test_reports_list_includes_new_run(page: Page):\n    \"\"\"Confirm completed run appears in the reports list.\"\"\"\n    page.goto(f\"{BASE_URL}/api/reports\")\n    \n    # Verify successful response\n    expect(page.locator(\".status-code\")).to_contain_text(\"200\")\n    \n    # Verify response body contains run data\n    expect(page.locator(\".report-list\")).not_to_be_empty()\n    expect(page.locator(\".report-item\")).to_contain_text(\"run_id\")\n\n\n# SCENARIO_ID: 3a73eabb-838f-4bc1-ab01-e7ca11112ce5\ndef test_reject_run_request_missing_label(page: Page):\n    \"\"\"Validate that missing required fields return 422 error.\"\"\"\n    run_pipeline_btn = page.get_by_role(\"button\", name=\"Run Pipeline\")\n    submit_btn = page.get_by_role(\"button\", name=\"Submit\")\n    \n    run_pipeline_btn.click()\n    expect(page.locator(\".modal\")).to_be_visible()\n    \n    # Do not fill label field - submit directly\n    submit_btn.click()\n    \n    # Verify validation error is shown\n    expect(page.get_by_role(\"alert\", name=\"validation error\")).to_contain_text(\"422\")\n    expect(page.locator(\".error-message\")).to_contain_text(\"label\")\n\n\n# SCENARIO_ID: 54d73283-5fe4-430d-9074-d0b2a308196d\ndef test_handle_invalid_json_body(page: Page):\n    \"\"\"Ensure server handles malformed JSON gracefully.\"\"\"\n    response = page.request.post(\n        f\"{BASE_URL}/api/pipeline/run\",\n        data=\"{invalid json}\",\n        headers={\"Content-Type\": \"application/json\"}\n    )\n    \n    # Verify 400 Bad Request status\n    expect(response).to_have_status(400)\n    \n    # Verify error response body\n    response_body = response.json()\n    assert \"detail\" in response_body or \"error\" in response_body\n\n\n# SCENARIO_ID: 1c5fec02-2aab-4610-bf21-26a6b0c2bb36\ndef test_process_empty_test_suite(page: Page):\n    \"\"\"Verify pipeline handles zero test cases without crashing.\"\"\"\n    label_input = page.get_by_label(\"Label\")\n    test_cases_input = page.get_by_placeholder(\"Test Cases\")\n    submit_btn = page.get_by_role(\"button\", name=\"Submit\")\n    \n    label_input.fill(\"Empty Suite\")\n    expect(label_input).to_have_value(\"Empty Suite\")\n    \n    test_cases_input.fill(\"[]\")\n    expect(test_cases_input).to_have_value(\"[]\")\n    \n    submit_btn.click()\n    \n    # Verify request was sent successfully\n    expect(page.get_by_role(\"alert\")).to_contain_text(\"Pipeline run queued\")\n    \n    # Verify test_count is 0 in response\n    expect(page.locator(\".test-count\")).to_contain_text(\"0\")\n\n\n# SCENARIO_ID: 38b8fc49-813d-4577-9021-9b20c60b334f\ndef test_reports_endpoint_when_directory_missing(page: Page):\n    \"\"\"Check behavior when REPORTS_DIR does not exist.\"\"\"\n    page.goto(f\"{BASE_URL}/api/reports\")\n    \n    # Verify successful response (200)\n    expect(page.locator(\".status-code\")).to_contain_text(\"200\")\n    \n    # Verify empty list is returned\n    expect(page.locator(\".report-list\")).to_contain_text(\"[]\")\n    expect(page.locator(\".report-item\")).to_have_count(0)\n\n\n# SCENARIO_ID: 9ad5b4a7-de84-46a2-9efd-0705014fba1a\ndef test_concurrent_pipeline_run_requests(page: Page):\n    \"\"\"Validate system stability under simultaneous run triggers.\"\"\"\n    # Make multiple parallel requests\n    responses = []\n    for i in range(3):\n        response = page.request.post(\n            f\"{BASE_URL}/api/pipeline/run\",\n            json={\"label\": f\"Concurrent Run {i}\", \"test_cases\": []}\n        )\n        responses.append(response)\n    \n    # Verify all requests return 202\n    for response in responses:\n        expect(response).to_have_status(202)\n    \n    # Verify each response has unique run_id\n    run_ids = [r.json().get(\"run_id\") for r in responses]\n    assert len(run_ids) == len(set(run_ids)), \"All run_ids should be unique\"\n    \n    # Verify all have queued status\n    for response in responses:\n        expect(response.json().get(\"status\")).to_equal(\"queued\")\n\n\n# SCENARIO_ID: dab0ed0a-ed16-4268-b622-3bc943479e71\ndef test_xss_payload_in_label_field(page: Page):\n    \"\"\"Ensure label input is sanitized against script injection.\"\"\"\n    label_input = page.get_by_label(\"Label\")\n    submit_btn = page.get_by_role(\"button\", name=\"Submit\")\n    \n    xss_payload = \"<script>alert('xss')</script>\"\n    label_input.fill(xss_payload)\n    expect(label_input).to_have_value(xss_payload)\n    \n    submit_btn.click()\n    \n    # Navigate to reports to check if payload is escaped\n    page.goto(f\"{BASE_URL}/api/reports\")\n    \n    # Verify payload is escaped or rejected - no script execution\n    expect(page.locator(\".report-label\")).not_to_contain_text(\"<script>\")\n    expect(page.locator(\"body\")).not_to_contain_text(\"alert('xss')\")\n\n\n# SCENARIO_ID: f94da1c2-5926-4ebc-92b9-67c920108854\ndef test_unauthorized_pipeline_start_attempt(page: Page):\n    \"\"\"Verify access control prevents unauthenticated runs.\"\"\"\n    # Make request without auth token\n    response = page.request.post(\n        f\"{BASE_URL}/api/pipeline/run\",\n        json={\"label\": \"Test Suite\", \"test_cases\": []},\n        headers={}  # No auth header\n    )\n    \n    # Verify 401 Unauthorized status\n    expect(response).to_have_status(401)\n    \n    # Verify error message indicates auth required\n    response_body = response.json()\n    assert \"unauthorized\" in str(response_body).lower() or \"auth\" in str(response_body).lower()\n",
+      "scenario_ids": [
+        "97b8f7c9-3862-4f13-a5fe-8f683e90da25",
+        "8db60a6b-3fa1-4494-a95c-3ec145c841f0",
+        "f9d94183-8214-4916-b51d-16b1aee720c2",
+        "3a73eabb-838f-4bc1-ab01-e7ca11112ce5",
+        "54d73283-5fe4-430d-9074-d0b2a308196d",
+        "1c5fec02-2aab-4610-bf21-26a6b0c2bb36",
+        "38b8fc49-813d-4577-9021-9b20c60b334f",
+        "9ad5b4a7-de84-46a2-9efd-0705014fba1a",
+        "dab0ed0a-ed16-4268-b622-3bc943479e71",
+        "f94da1c2-5926-4ebc-92b9-67c920108854"
+      ],
+      "generated_at": "2026-03-14T22:46:40.122579"
+    }
+  ],
+  "execution_results": [],
+  "heal_results": [],
+  "error": "Playwright timed out after 120s"
+}

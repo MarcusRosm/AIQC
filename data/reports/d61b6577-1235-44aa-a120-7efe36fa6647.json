@@ -1,0 +1,268 @@
+{
+  "run_id": "d61b6577-1235-44aa-a120-7efe36fa6647",
+  "label": "Pipeline",
+  "started_at": "2026-03-15T13:21:56.399864",
+  "completed_at": "2026-03-15T13:22:42.423654",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "dc41e14d-46b0-4a67-9152-168af075d058",
+        "title": "Trigger successful pipeline run via API",
+        "category": "happy_path",
+        "description": "Verify that a valid POST request to /api/pipeline/run returns a 202 status and a run_id.",
+        "preconditions": [
+          "API server is running",
+          "Diff analysis and RAG components are initialized"
+        ],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Response status is 202 and contains a UUID run_id"
+          }
+        ],
+        "expected_result": "A 202 Accepted response is received with a valid run_id and the pipeline starts in the background.",
+        "tags": [
+          "api",
+          "pipeline"
+        ]
+      },
+      {
+        "id": "57bc8653-4615-4be7-91e4-98bc2905f518",
+        "title": "List completed pipeline reports",
+        "category": "happy_path",
+        "description": "Ensure the reports dashboard lists existing pipeline runs sorted by most recent.",
+        "preconditions": [
+          "At least one pipeline run has completed and saved to the reports directory"
+        ],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "Response is a list of run summaries"
+          }
+        ],
+        "expected_result": "The API returns a JSON list of report summaries, including run_id and labels.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      },
+      {
+        "id": "3a3e5759-1bf4-4e30-8c86-b9b16c13c8af",
+        "title": "Retrieve specific report details",
+        "category": "happy_path",
+        "description": "Fetch the full JSON detail for a specific run_id.",
+        "preconditions": [
+          "A valid report exists for run_id 'test-uuid-123'"
+        ],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports/test-uuid-123",
+            "assertion": "Response status is 200 and contains diff_result"
+          }
+        ],
+        "expected_result": "Full pipeline run details including stage results (STARTED, DIFF_ANALYZED, etc.) are returned.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      },
+      {
+        "id": "696d235f-648e-41c3-9718-1a29a5b062bc",
+        "title": "Submit pipeline run with empty payload",
+        "category": "negative",
+        "description": "Verify the API handles missing required fields in the PipelineRunRequest.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Response status is 422 Unprocessable Entity"
+          }
+        ],
+        "expected_result": "FastAPI validation error is returned for missing run_label and diff_text.",
+        "tags": [
+          "api",
+          "validation"
+        ]
+      },
+      {
+        "id": "1bebb2c5-ef7f-4ac9-9631-1c98fb19c45c",
+        "title": "Request non-existent report ID",
+        "category": "negative",
+        "description": "Verify 404 behavior when requesting a report that does not exist on disk.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports/non-existent-id",
+            "assertion": "Response status is 404 Not Found"
+          }
+        ],
+        "expected_result": "The server returns a 404 error indicating the report file was not found.",
+        "tags": [
+          "api",
+          "error-handling"
+        ]
+      },
+      {
+        "id": "af6371fc-4ec9-4ce7-a1ec-b20fdda3b02e",
+        "title": "Handle extremely large diff text payload",
+        "category": "edge_case",
+        "description": "Submit a diff_text exceeding typical size limits to test RAG retrieval and processing stability.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Server does not crash and processes or rejects based on size limits"
+          }
+        ],
+        "expected_result": "The system should either process the diff or return a clean error if limits are exceeded (e.g., 413 Payload Too Large).",
+        "tags": [
+          "performance",
+          "edge-case"
+        ]
+      },
+      {
+        "id": "9ade2a74-7ed5-40fd-9b76-6c06a6601686",
+        "title": "Pipeline run with empty diff content",
+        "category": "edge_case",
+        "description": "Submit a run where diff_text is empty or contains no valid changes.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Pipeline stage DIFF_ANALYZED reports zero changes"
+          }
+        ],
+        "expected_result": "The pipeline should initialize but may yield events indicating no files were analyzed.",
+        "tags": [
+          "api",
+          "edge-case"
+        ]
+      },
+      {
+        "id": "eaa138a4-9bc3-414b-8f80-f9d461bb7012",
+        "title": "Path traversal attempt in report retrieval",
+        "category": "security",
+        "description": "Attempt to access files outside the reports directory using directory traversal in the run_id parameter.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports/../../etc/passwd",
+            "assertion": "Response status is 404 or 400, not 200"
+          }
+        ],
+        "expected_result": "The system must sanitize the run_id or handle the Path object safely to prevent unauthorized file access.",
+        "tags": [
+          "security",
+          "OWASP"
+        ]
+      },
+      {
+        "id": "f06fa4c0-7533-49a3-b1d4-1d68a024dbb1",
+        "title": "XSS Probe in run_label",
+        "category": "security",
+        "description": "Submit a pipeline run with a script tag in the run_label field.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Label is stored and returned with proper encoding"
+          },
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "Label text is escaped in the response"
+          }
+        ],
+        "expected_result": "The script tag is treated as plain text and not executed in any UI context.",
+        "tags": [
+          "security",
+          "XSS"
+        ]
+      },
+      {
+        "id": "d22f6a67-10fd-43c7-b5fc-ee6ff81d82b5",
+        "title": "Concurrent pipeline run requests",
+        "category": "edge_case",
+        "description": "Simulate multiple users starting pipeline runs simultaneously to check background task handling.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "All requests receive unique run_ids"
+          }
+        ],
+        "expected_result": "The server handles concurrent background tasks without race conditions or shared state corruption.",
+        "tags": [
+          "concurrency",
+          "edge-case"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-15T13:22:11.886889",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_pipeline_api.py",
+      "content": "import os\nimport pytest\nfrom playwright.sync_api import Page, expect\n\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\nAPI_PIPELINE_RUN = f\"{BASE_URL}/api/pipeline/run\"\nAPI_REPORTS = f\"{BASE_URL}/api/reports\"\n\n# SCENARIO_ID: dc41e14d-46b0-4a67-9152-168af075d058\ndef test_trigger_successful_pipeline_run_returns_202(page: Page):\n    page.goto(BASE_URL)\n    payload = {\n        \"run_label\": \"Happy Path Run\",\n        \"diff_text\": \"diff --git a/app/main.py b/app/main.py\n+@app.get('/')\n+def read_root():\n+    return {'Hello': 'World'}\"\n    }\n    response = page.request.post(API_PIPELINE_RUN, data=payload)\n    expect(response).to_be_ok()\n    assert response.status == 202\n    \n    body = response.json()\n    assert \"run_id\" in body\n    assert len(body[\"run_id\"]) > 0\n\n# SCENARIO_ID: 57bc8653-4615-4be7-91e4-98bc2905f518\ndef test_list_completed_pipeline_reports_returns_summaries(page: Page):\n    page.goto(BASE_URL)\n    response = page.request.get(API_REPORTS)\n    expect(response).to_be_ok()\n    \n    reports = response.json()\n    assert isinstance(reports, list)\n\n# SCENARIO_ID: 3a3e5759-1bf4-4e30-8c86-b9b16c13c8af\ndef test_retrieve_specific_report_details_returns_200(page: Page):\n    page.goto(BASE_URL)\n    run_id = \"test-uuid-123\"\n    # Note: This test assumes pre-existence of test-uuid-123 or a mock\n    response = page.request.get(f\"{API_REPORTS}/{run_id}\")\n    \n    if response.status == 404:\n        pytest.skip(f\"Report {run_id} not found in environment\")\n        \n    expect(response).to_be_ok()\n    body = response.json()\n    assert \"diff_result\" in body\n\n# SCENARIO_ID: 696d235f-648e-41c3-9718-1a29a5b062bc\ndef test_submit_pipeline_run_with_empty_payload_returns_422(page: Page):\n    page.goto(BASE_URL)\n    # Empty JSON payload to trigger FastAPI validation error\n    response = page.request.post(API_PIPELINE_RUN, data={})\n    expect(response).not.to_be_ok()\n    assert response.status == 422\n\n# SCENARIO_ID: 1bebb2c5-ef7f-4ac9-9631-1c98fb19c45c\ndef test_request_non_existent_report_id_returns_404(page: Page):\n    page.goto(BASE_URL)\n    response = page.request.get(f\"{API_REPORTS}/non-existent-id\")\n    expect(response).not.to_be_ok()\n    assert response.status == 404\n\n# SCENARIO_ID: af6371fc-4ec9-4ce7-a1ec-b20fdda3b02e\ndef test_handle_extremely_large_diff_payload_stability(page: Page):\n    page.goto(BASE_URL)\n    large_diff = \"diff --git a/large.txt b/large.txt\n\" + (\"+content\n\" * 10000)\n    payload = {\n        \"run_label\": \"Performance Test\",\n        \"diff_text\": large_diff\n    }\n    response = page.request.post(API_PIPELINE_RUN, data=payload)\n    # System should either accept (202) or reject with 413, but not 500 crash\n    assert response.status in [202, 413]\n    expect(response).not.to_have_status(500)\n\n# SCENARIO_ID: 9ade2a74-7ed5-40fd-9b76-6c06a6601686\ndef test_pipeline_run_with_empty_diff_content(page: Page):\n    page.goto(BASE_URL)\n    payload = {\n        \"run_label\": \"Empty Diff\",\n        \"diff_text\": \"\"\n    }\n    response = page.request.post(API_PIPELINE_RUN, data=payload)\n    expect(response).to_be_ok()\n    assert response.status == 202\n\n# SCENARIO_ID: eaa138a4-9bc3-414b-8f80-f9d461bb7012\ndef test_path_traversal_attempt_in_report_retrieval_fails(page: Page):\n    page.goto(BASE_URL)\n    # Attempting to access sensitive system files via relative paths\n    traversal_id = \"../../etc/passwd\"\n    response = page.request.get(f\"{API_REPORTS}/{traversal_id}\")\n    \n    # Security check: Must not return 200\n    expect(response).not.to_be_ok()\n    assert response.status in [404, 400, 422]\n\n# SCENARIO_ID: f06fa4c0-7533-49a3-b1d4-1d68a024dbb1\ndef test_xss_probe_in_run_label_is_escaped(page: Page):\n    page.goto(BASE_URL)\n    xss_payload = \"<script>alert('xss')</script>\"\n    payload = {\n        \"run_label\": xss_payload,\n        \"diff_text\": \"diff --git a/a b/a\n+changes\"\n    }\n    \n    # 1. Submit the run\n    post_response = page.request.post(API_PIPELINE_RUN, data=payload)\n    expect(post_response).to_be_ok()\n    \n    # 2. Check the reports list to ensure it is stored/returned correctly\n    get_response = page.request.get(API_REPORTS)\n    expect(get_response).to_be_ok()\n    \n    reports_text = get_response.text()\n    # The literal script string should be present (not executed or stripped)\n    assert xss_payload in reports_text\n\n# SCENARIO_ID: d22f6a67-10fd-43c7-b5fc-ee6ff81d82b5\ndef test_concurrent_pipeline_run_requests_receive_unique_ids(page: Page):\n    page.goto(BASE_URL)\n    payload = {\n        \"run_label\": \"Concurrency Test\",\n        \"diff_text\": \"diff --git a/a b/a\n+changes\"\n    }\n    \n    run_ids = []\n    for _ in range(3):\n        response = page.request.post(API_PIPELINE_RUN, data=payload)\n        expect(response).to_be_ok()\n        run_ids.append(response.json()[\"run_id\"])\n    \n    # Verify all generated IDs are unique\n    assert len(set(run_ids)) == len(run_ids)\n",
+      "scenario_ids": [
+        "dc41e14d-46b0-4a67-9152-168af075d058",
+        "57bc8653-4615-4be7-91e4-98bc2905f518",
+        "3a3e5759-1bf4-4e30-8c86-b9b16c13c8af",
+        "696d235f-648e-41c3-9718-1a29a5b062bc",
+        "1bebb2c5-ef7f-4ac9-9631-1c98fb19c45c",
+        "af6371fc-4ec9-4ce7-a1ec-b20fdda3b02e",
+        "9ade2a74-7ed5-40fd-9b76-6c06a6601686",
+        "eaa138a4-9bc3-414b-8f80-f9d461bb7012",
+        "f06fa4c0-7533-49a3-b1d4-1d68a024dbb1",
+        "d22f6a67-10fd-43c7-b5fc-ee6ff81d82b5"
+      ],
+      "generated_at": "2026-03-15T13:22:41.990667"
+    }
+  ],
+  "execution_results": [],
+  "heal_results": [],
+  "error": null
+}

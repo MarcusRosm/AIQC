@@ -1,0 +1,30 @@
+{
+  "run_id": "6df7852b-897e-42d8-97cd-816f751054d7",
+  "label": null,
+  "started_at": "2026-03-13T19:02:17.287758",
+  "completed_at": null,
+  "status": "failed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "foo.py",
+        "change_type": "modified",
+        "additions": 1,
+        "deletions": 1,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/foo.py b/foo.py\n--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-x=1\n+x=2\n"
+      }
+    ],
+    "summary": "Changed 1 file(s): foo.py",
+    "total_additions": 1,
+    "total_deletions": 1,
+    "affected_routes": [],
+    "affected_components": []
+  },
+  "scenario_list": null,
+  "generated_specs": [],
+  "execution_results": [],
+  "heal_results": [],
+  "error": "Scenario generation failed after all retries."
+}

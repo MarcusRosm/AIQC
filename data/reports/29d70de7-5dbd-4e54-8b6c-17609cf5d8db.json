@@ -1,0 +1,190 @@
+{
+  "run_id": "29d70de7-5dbd-4e54-8b6c-17609cf5d8db",
+  "label": "Pipeline test",
+  "started_at": "2026-03-14T22:49:43.424541",
+  "completed_at": null,
+  "status": "failed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "7a16b677-d2b4-4ee1-b2e8-27d5e8e30c4a",
+        "title": "List Reports - Successful Retrieval",
+        "category": "happy_path",
+        "description": "Verify that the API endpoint /api/reports returns a list of reports when reports exist.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "api_call",
+            "selector": null,
+            "value": null,
+            "assertion": "response_status == 200 and len(response_json) > 0"
+          }
+        ],
+        "expected_result": "A list of report summaries is returned.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      },
+      {
+        "id": "cdb89241-cd7f-404e-aaa2-b38c82a473db",
+        "title": "List Reports - No Reports Exist",
+        "category": "edge_case",
+        "description": "Verify that the API endpoint /api/reports returns an empty list when no reports exist.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "api_call",
+            "selector": null,
+            "value": null,
+            "assertion": "response_status == 200 and response_json == []"
+          }
+        ],
+        "expected_result": "An empty list is returned.",
+        "tags": [
+          "api",
+          "reports",
+          "empty_state"
+        ]
+      },
+      {
+        "id": "6664dc61-2ac3-4ce6-8816-59d3c3a687ca",
+        "title": "Get Report Details - Successful Retrieval",
+        "category": "happy_path",
+        "description": "Verify that the API endpoint /api/reports/{run_id} returns report details for a valid run_id.",
+        "preconditions": [
+          "A report with the specified run_id exists."
+        ],
+        "steps": [
+          {
+            "action": "api_call",
+            "selector": null,
+            "value": null,
+            "assertion": "response_status == 200 and 'run_id' in response_json"
+          }
+        ],
+        "expected_result": "The report details are returned.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      },
+      {
+        "id": "2425359b-c048-4a77-81ce-034f4a164431",
+        "title": "Get Report Details - Run ID Not Found",
+        "category": "negative",
+        "description": "Verify that the API endpoint /api/reports/{run_id} returns a 404 error when the run_id does not exist.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "api_call",
+            "selector": null,
+            "value": null,
+            "assertion": "response_status == 404"
+          }
+        ],
+        "expected_result": "A 404 error is returned.",
+        "tags": [
+          "api",
+          "reports",
+          "negative"
+        ]
+      },
+      {
+        "id": "84f60862-e14e-4574-a2c0-97cb97232bfc",
+        "title": "Delete Report - Successful Deletion",
+        "category": "happy_path",
+        "description": "Verify that the API endpoint /api/reports/{run_id} deletes the specified report.",
+        "preconditions": [
+          "A report with the specified run_id exists."
+        ],
+        "steps": [
+          {
+            "action": "api_call",
+            "selector": null,
+            "value": null,
+            "assertion": "response_status == 200"
+          },
+          {
+            "action": "api_call",
+            "selector": null,
+            "value": null,
+            "assertion": "response_status == 404"
+          }
+        ],
+        "expected_result": "The report is deleted, and a 404 is returned when trying to retrieve it.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      },
+      {
+        "id": "cf984d73-f095-4146-8abb-9f5a605f4f3d",
+        "title": "Start Pipeline Run - Successful Queueing",
+        "category": "happy_path",
+        "description": "Verify that the API endpoint /api/pipeline/run successfully queues a new pipeline run.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "api_call",
+            "selector": null,
+            "value": null,
+            "assertion": "response_status == 202 and 'run_id' in response_json"
+          }
+        ],
+        "expected_result": "A 202 Accepted response with a run_id is returned.",
+        "tags": [
+          "api",
+          "pipeline"
+        ]
+      },
+      {
+        "id": "18dc96d2-3993-4f91-9480-ba5e5198503c",
+        "title": "Start Pipeline Run - Invalid Input",
+        "category": "negative",
+        "description": "Verify that the API endpoint /api/pipeline/run returns an error for invalid input.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "api_call",
+            "selector": null,
+            "value": null,
+            "assertion": "response_status == 422"
+          }
+        ],
+        "expected_result": "A 422 Unprocessable Entity error is returned.",
+        "tags": [
+          "api",
+          "pipeline",
+          "negative"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T22:50:06.257241",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [],
+  "execution_results": [],
+  "heal_results": [],
+  "error": "Code generation failed after all retries.\nDetail: Ollama generate failed: prompt too long; exceeded max context length by 575 tokens (status code: 400)\nDetail: prompt too long; exceeded max context length by 575 tokens (status code: 400)"
+}

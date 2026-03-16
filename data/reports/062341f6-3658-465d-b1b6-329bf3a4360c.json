@@ -1,0 +1,373 @@
+{
+  "run_id": "062341f6-3658-465d-b1b6-329bf3a4360c",
+  "label": "UI Change",
+  "started_at": "2026-03-15T14:06:20.300087",
+  "completed_at": "2026-03-15T14:47:31.110290",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "frontend/src/components/StatusIndicator.tsx",
+        "change_type": "modified",
+        "additions": 3,
+        "deletions": 2,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/frontend/src/components/StatusIndicator.tsx b/frontend/src/components/StatusIndicator.tsx\n--- a/frontend/src/components/StatusIndicator.tsx\n+++ b/frontend/src/components/StatusIndicator.tsx\n@@ -10,6 +10,7 @@\n export function StatusIndicator({ status }: { status: \"ok\" | \"degraded\" }) {\n   const isOk = status === \"ok\";\n   return (\n-    <div className={`status-pill ${isOk ? 'bg-green-500' : 'bg-red-500'}`}>\n-      {isOk ? \"All Systems Operational\" : \"Degraded Performance\"}\n+    <div className={`status-pill p-4 rounded shadow-md ${isOk ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`} data-testid=\"status-indicator\">\n+      <span className=\"font-bold text-lg\" data-testid=\"status-text\">{isOk ? \"All Systems Operational\" : \"Degraded Performance\"}</span>\n+      {!isOk && <button className=\"ml-4 px-2 py-1 bg-white text-red-500 rounded\" onClick={() => window.location.reload()}>Retry Connection</button>}\n     </div>\n   );\n }\n"
+      },
+      {
+        "path": "frontend/src/App.tsx",
+        "change_type": "modified",
+        "additions": 1,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx\n--- a/frontend/src/App.tsx\n+++ b/frontend/src/App.tsx\n@@ -25,2 +25,3 @@\n       <header>\n         <h1>QA Platform Dashboard</h1>\n+        <StatusIndicator status={healthStatus} />\n       </header>"
+      }
+    ],
+    "summary": "Changed 2 file(s): StatusIndicator.tsx, App.tsx",
+    "total_additions": 4,
+    "total_deletions": 2,
+    "affected_routes": [],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "9220fe51-86e4-4342-b043-6fec072a1598",
+        "title": "Verify StatusIndicator displays initial idle state in App",
+        "category": "happy_path",
+        "description": "Ensure that when the application loads, the StatusIndicator is visible and shows the expected default state.",
+        "preconditions": [
+          "The application is accessible."
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/",
+            "assertion": "URL is correct"
+          },
+          {
+            "action": "check_visibility",
+            "selector": "page.get_by_role('status')",
+            "value": null,
+            "assertion": "Status indicator is visible in the App header or body"
+          }
+        ],
+        "expected_result": "The StatusIndicator should be present and indicate an 'Idle' or 'Ready' state.",
+        "tags": [
+          "UI",
+          "smoke"
+        ]
+      },
+      {
+        "id": "9c081d48-e6e4-49fb-a305-76cf89714c49",
+        "title": "Verify StatusIndicator updates during Diff Analysis",
+        "category": "happy_path",
+        "description": "Test the transition of states in StatusIndicator when a git diff is processed.",
+        "preconditions": [
+          "User is on the main analysis page."
+        ],
+        "steps": [
+          {
+            "action": "fill",
+            "selector": "page.get_by_placeholder('Paste git diff here')",
+            "value": "diff --git a/file.txt b/file.txt\n+added line",
+            "assertion": null
+          },
+          {
+            "action": "click",
+            "selector": "page.get_by_role('button', name='Analyze')",
+            "value": null,
+            "assertion": null
+          },
+          {
+            "action": "wait_for_selector",
+            "selector": "page.get_by_text('Analyzing')",
+            "value": null,
+            "assertion": "Indicator shows processing state"
+          },
+          {
+            "action": "wait_for_selector",
+            "selector": "page.get_by_text('Success')",
+            "value": null,
+            "assertion": "Indicator shows success state"
+          }
+        ],
+        "expected_result": "The StatusIndicator correctly transitions from 'Analyzing' to 'Success' upon completion.",
+        "tags": [
+          "UI",
+          "functional"
+        ]
+      },
+      {
+        "id": "6ae41d2e-2be8-4a60-9cbb-1a3ddb6965c7",
+        "title": "Handle API errors in StatusIndicator",
+        "category": "negative",
+        "description": "Verify that the StatusIndicator reflects an error state when the backend returns a 500 error.",
+        "preconditions": [
+          "Backend API is mocked to return 500 Internal Server Error."
+        ],
+        "steps": [
+          {
+            "action": "mock_route",
+            "selector": "**/analyze**",
+            "value": "500",
+            "assertion": null
+          },
+          {
+            "action": "click",
+            "selector": "page.get_by_role('button', name='Analyze')",
+            "value": null,
+            "assertion": null
+          }
+        ],
+        "expected_result": "StatusIndicator should display an 'Error' state and the App should remain stable.",
+        "tags": [
+          "UI",
+          "error-handling"
+        ]
+      },
+      {
+        "id": "3b2e3c15-b70f-4d3a-beab-9cefad9a72cc",
+        "title": "StatusIndicator resilience to long component names",
+        "category": "edge_case",
+        "description": "Ensure the UI doesn't break if a diff contains extremely long PascalCase component names.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "fill",
+            "selector": "page.get_by_placeholder('Paste git diff here')",
+            "value": "diff --git a/UI.tsx b/UI.tsx\n+export const VeryLongComponentNameThatMightBreakTheLayoutTransitionIndicator = () => {};",
+            "assertion": null
+          },
+          {
+            "action": "click",
+            "selector": "page.get_by_role('button', name='Analyze')",
+            "value": null,
+            "assertion": null
+          }
+        ],
+        "expected_result": "The StatusIndicator and App layout should handle long text without horizontal overflow or clipping.",
+        "tags": [
+          "UI",
+          "layout"
+        ]
+      },
+      {
+        "id": "831e1c7f-fc91-4296-94de-db18fc74fae3",
+        "title": "Rapid consecutive diff submissions",
+        "category": "edge_case",
+        "description": "Check behavior when multiple analyses are triggered in quick succession.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "click",
+            "selector": "page.get_by_role('button', name='Analyze')",
+            "value": null,
+            "assertion": null
+          },
+          {
+            "action": "click",
+            "selector": "page.get_by_role('button', name='Analyze')",
+            "value": null,
+            "assertion": null
+          }
+        ],
+        "expected_result": "The StatusIndicator should correctly reflect the state of the latest request or queue them appropriately.",
+        "tags": [
+          "UI",
+          "concurrency"
+        ]
+      },
+      {
+        "id": "3317f9da-8f0a-4f41-8c1e-1b9fc17ab84a",
+        "title": "Prevent XSS via diff metadata in StatusIndicator",
+        "category": "security",
+        "description": "Verify that malicious diff content intended to trigger scripts in the status area is sanitized.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "fill",
+            "selector": "page.get_by_placeholder('Paste git diff here')",
+            "value": "diff --git a/<img src=x onerror=alert(1)>.tsx b/file.tsx\n+const XSS = () => {};",
+            "assertion": null
+          },
+          {
+            "action": "click",
+            "selector": "page.get_by_role('button', name='Analyze')",
+            "value": null,
+            "assertion": null
+          }
+        ],
+        "expected_result": "The application must not execute the alert script; the malicious string should be rendered as plain text or sanitized.",
+        "tags": [
+          "security",
+          "XSS"
+        ]
+      },
+      {
+        "id": "19f2ae09-4ece-41db-b4cd-28791f040b6b",
+        "title": "Empty diff submission handling",
+        "category": "negative",
+        "description": "Verify the StatusIndicator behavior when an empty or whitespace-only diff is submitted.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "fill",
+            "selector": "page.get_by_placeholder('Paste git diff here')",
+            "value": "   ",
+            "assertion": null
+          },
+          {
+            "action": "click",
+            "selector": "page.get_by_role('button', name='Analyze')",
+            "value": null,
+            "assertion": null
+          }
+        ],
+        "expected_result": "The StatusIndicator should display a validation error or remain in the idle state with a warning message.",
+        "tags": [
+          "UI",
+          "validation"
+        ]
+      },
+      {
+        "id": "7daf0dc5-6df7-4eed-8465-cd90a010ebe4",
+        "title": "Network latency simulation",
+        "category": "edge_case",
+        "description": "Observe StatusIndicator behavior during high network latency (e.g., 5 seconds).",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "set_network_delay",
+            "selector": null,
+            "value": "5000",
+            "assertion": null
+          },
+          {
+            "action": "click",
+            "selector": "page.get_by_role('button', name='Analyze')",
+            "value": null,
+            "assertion": null
+          },
+          {
+            "action": "check_visibility",
+            "selector": "page.get_by_text('Analyzing')",
+            "value": null,
+            "assertion": "Loading state persists correctly during delay"
+          }
+        ],
+        "expected_result": "The UI should provide visual feedback (e.g., a spinner or 'Analyzing' text) throughout the entire wait period.",
+        "tags": [
+          "UI",
+          "performance"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-15T14:06:35.927831",
+    "source_diff_summary": "Changed 2 file(s): StatusIndicator.tsx, App.tsx"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_status_indicator.py",
+      "content": "import os\nimport re\nimport time\nimport pytest\nfrom playwright.sync_api import Page, expect\n\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\n\n# SCENARIO_ID: 9220fe51-86e4-4342-b043-6fec072a1598\ndef test_status_indicator_displays_initial_idle_state(page: Page):\n    page.goto(BASE_URL)\n    status_indicator = page.get_by_role(\"status\")\n    \n    expect(status_indicator).to_be_visible()\n    # Check for expected default state text like 'Idle' or 'Ready'\n    expect(status_indicator).to_contain_text(re.compile(r\"Idle|Ready\", re.IGNORECASE))\n\n# SCENARIO_ID: 9c081d48-e6e4-49fb-a305-76cf89714c49\ndef test_status_indicator_updates_during_diff_analysis(page: Page):\n    page.goto(BASE_URL)\n    diff_input = page.get_by_placeholder(\"Paste git diff here\")\n    analyze_button = page.get_by_role(\"button\", name=\"Analyze\")\n\n    diff_text = \"\"\"diff --git a/file.txt b/file.txt\n+added line\"\"\"\n    \n    diff_input.fill(diff_text)\n    analyze_button.click()\n\n    # Verify transition states\n    expect(page.get_by_text(\"Analyzing\")).to_be_visible()\n    expect(page.get_by_text(\"Success\")).to_be_visible()\n\n# SCENARIO_ID: 6ae41d2e-2be8-4a60-9cbb-1a3ddb6965c7\ndef test_handle_api_errors_in_status_indicator(page: Page):\n    page.goto(BASE_URL)\n    # Mock the analyze endpoint to return a 500 error\n    page.route(\"**/analyze**\", lambda route: route.fulfill(status=500))\n\n    analyze_button = page.get_by_role(\"button\", name=\"Analyze\")\n    analyze_button.click()\n\n    # Indicator should reflect the error state\n    expect(page.get_by_role(\"status\")).to_contain_text(\"Error\")\n\n# SCENARIO_ID: 3b2e3c15-b70f-4d3a-beab-9cefad9a72cc\ndef test_status_indicator_resilience_to_long_component_names(page: Page):\n    page.goto(BASE_URL)\n    diff_input = page.get_by_placeholder(\"Paste git diff here\")\n    analyze_button = page.get_by_role(\"button\", name=\"Analyze\")\n\n    long_name = \"VeryLongComponentNameThatMightBreakTheLayoutTransitionIndicator\"\n    diff_content = f\"\"\"diff --git a/UI.tsx b/UI.tsx\n+export const {long_name} = () => {{}};\"\"\"\n\n    diff_input.fill(diff_content)\n    analyze_button.click()\n\n    # Assert layout remains functional and status is visible\n    expect(page.get_by_role(\"status\")).to_be_visible()\n    expect(page.get_by_text(long_name)).to_be_visible()\n\n# SCENARIO_ID: 831e1c7f-fc91-4296-94de-db18fc74fae3\ndef test_rapid_consecutive_diff_submissions(page: Page):\n    page.goto(BASE_URL)\n    analyze_button = page.get_by_role(\"button\", name=\"Analyze\")\n\n    # Trigger multiple actions rapidly\n    analyze_button.click()\n    analyze_button.click()\n\n    # Ensure the status indicator is not stuck and eventually shows a non-idle state\n    expect(page.get_by_role(\"status\")).not_to_have_text(\"Idle\")\n\n# SCENARIO_ID: 3317f9da-8f0a-4f41-8c1e-1b9fc17ab84a\ndef test_prevent_xss_via_diff_metadata_in_status_indicator(page: Page):\n    page.goto(BASE_URL)\n    # Setup listener to fail if any alert/dialog is triggered\n    page.on(\"dialog\", lambda dialog: pytest.fail(f\"XSS vulnerability detected: {dialog.message}\"))\n\n    diff_input = page.get_by_placeholder(\"Paste git diff here\")\n    analyze_button = page.get_by_role(\"button\", name=\"Analyze\")\n\n    malicious_diff = \"\"\"diff --git a/<img src=x onerror=alert(1)>.tsx b/file.tsx\n+const XSS = () => {};\"\"\"\n\n    diff_input.fill(malicious_diff)\n    analyze_button.click()\n\n    # Malicious string should be rendered as text, not executed as HTML\n    expect(page.get_by_text(\"<img src=x onerror=alert(1)>\")).to_be_visible()\n\n# SCENARIO_ID: 19f2ae09-4ece-41db-b4cd-28791f040b6b\ndef test_empty_diff_submission_handling(page: Page):\n    page.goto(BASE_URL)\n    diff_input = page.get_by_placeholder(\"Paste git diff here\")\n    analyze_button = page.get_by_role(\"button\", name=\"Analyze\")\n\n    diff_input.fill(\"   \")\n    analyze_button.click()\n\n    # The UI should indicate a validation error or remain idle with a warning\n    status_indicator = page.get_by_role(\"status\")\n    expect(status_indicator).to_contain_text(re.compile(r\"Error|Warning|Idle\", re.IGNORECASE))\n\n# SCENARIO_ID: 7daf0dc5-6df7-4eed-8465-cd90a010ebe4\ndef test_network_latency_simulation_feedback(page: Page):\n    page.goto(BASE_URL)\n\n    def handle_route(route):\n        time.sleep(5)\n        route.continue_()\n\n    # Simulate high network latency for analysis\n    page.route(\"**/analyze**\", handle_route)\n\n    analyze_button = page.get_by_role(\"button\", name=\"Analyze\")\n    analyze_button.click()\n\n    # Analyzing state must persist while the request is pending\n    expect(page.get_by_text(\"Analyzing\")).to_be_visible()",
+      "scenario_ids": [
+        "9220fe51-86e4-4342-b043-6fec072a1598",
+        "9c081d48-e6e4-49fb-a305-76cf89714c49",
+        "6ae41d2e-2be8-4a60-9cbb-1a3ddb6965c7",
+        "3b2e3c15-b70f-4d3a-beab-9cefad9a72cc",
+        "831e1c7f-fc91-4296-94de-db18fc74fae3",
+        "3317f9da-8f0a-4f41-8c1e-1b9fc17ab84a",
+        "19f2ae09-4ece-41db-b4cd-28791f040b6b",
+        "7daf0dc5-6df7-4eed-8465-cd90a010ebe4"
+      ],
+      "generated_at": "2026-03-15T14:07:11.671331"
+    }
+  ],
+  "execution_results": [
+    {
+      "test_title": "test_status_indicator_displays_initial_idle_state[chromium]",
+      "spec_file": "generated_tests/062341f6-3658-465d-b1b6-329bf3a4360c/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 5034,
+      "error_message": "AssertionError: Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for get_by_role(\"status\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_status_indicator_updates_during_diff_analysis[chromium]",
+      "spec_file": "generated_tests/062341f6-3658-465d-b1b6-329bf3a4360c/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 30006,
+      "error_message": "playwright._impl._errors.TimeoutError: Locator.fill: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_placeholder(\"Paste git diff here\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_handle_api_errors_in_status_indicator[chromium]",
+      "spec_file": "generated_tests/062341f6-3658-465d-b1b6-329bf3a4360c/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 30013,
+      "error_message": "playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_role(\"button\", name=\"Analyze\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_status_indicator_resilience_to_long_component_names[chromium]",
+      "spec_file": "generated_tests/062341f6-3658-465d-b1b6-329bf3a4360c/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 30004,
+      "error_message": "playwright._impl._errors.TimeoutError: Locator.fill: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_placeholder(\"Paste git diff here\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_rapid_consecutive_diff_submissions[chromium]",
+      "spec_file": "generated_tests/062341f6-3658-465d-b1b6-329bf3a4360c/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 30007,
+      "error_message": "playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_role(\"button\", name=\"Analyze\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_prevent_xss_via_diff_metadata_in_status_indicator[chromium]",
+      "spec_file": "generated_tests/062341f6-3658-465d-b1b6-329bf3a4360c/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 30007,
+      "error_message": "playwright._impl._errors.TimeoutError: Locator.fill: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_placeholder(\"Paste git diff here\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_empty_diff_submission_handling[chromium]",
+      "spec_file": "generated_tests/062341f6-3658-465d-b1b6-329bf3a4360c/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 30005,
+      "error_message": "playwright._impl._errors.TimeoutError: Locator.fill: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_placeholder(\"Paste git diff here\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_network_latency_simulation_feedback[chromium]",
+      "spec_file": "generated_tests/062341f6-3658-465d-b1b6-329bf3a4360c/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 30010,
+      "error_message": "playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_role(\"button\", name=\"Analyze\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    }
+  ],
+  "heal_results": [],
+  "error": null
+}

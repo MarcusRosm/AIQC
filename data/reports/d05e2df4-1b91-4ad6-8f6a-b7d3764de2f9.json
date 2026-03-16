@@ -1,0 +1,429 @@
+{
+  "run_id": "d05e2df4-1b91-4ad6-8f6a-b7d3764de2f9",
+  "label": "Pipeline Yet Again!",
+  "started_at": "2026-03-14T22:42:00.883165",
+  "completed_at": "2026-03-14T22:44:55.989526",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "5da4ad91-9823-4760-84f2-737850e14468",
+        "title": "Valid Pipeline Run Initiation",
+        "category": "happy_path",
+        "description": "Verify that a valid POST request to /api/pipeline/run returns 202 Accepted with a run_id.",
+        "preconditions": [
+          "API server is running on localhost:8000",
+          "app/api/routes/pipeline.py is deployed"
+        ],
+        "steps": [
+          {
+            "action": "api_post",
+            "selector": "/api/pipeline/run",
+            "value": "{\"label\": \"smoke_test\", \"target_url\": \"https://example.com\"}",
+            "assertion": "status_code == 202"
+          },
+          {
+            "action": "assert_json",
+            "selector": "response.body",
+            "value": "run_id",
+            "assertion": "exists && is_uuid"
+          }
+        ],
+        "expected_result": "Response contains valid UUID run_id and status 'queued'.",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run",
+          "happy_path"
+        ]
+      },
+      {
+        "id": "59927e15-0501-495d-8db2-446508c32bb3",
+        "title": "Background Task Trigger Verification",
+        "category": "happy_path",
+        "description": "Ensure the background task is queued and status endpoint becomes available.",
+        "preconditions": [
+          "Pipeline run initiated successfully"
+        ],
+        "steps": [
+          {
+            "action": "api_get",
+            "selector": "/api/pipeline/status/{run_id}",
+            "value": null,
+            "assertion": "status_code == 200"
+          },
+          {
+            "action": "assert_content",
+            "selector": "response.body",
+            "value": "event: pipeline_stage",
+            "assertion": "contains"
+          }
+        ],
+        "expected_result": "SSE stream opens and emits pipeline events.",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/status",
+          "happy_path"
+        ]
+      },
+      {
+        "id": "109455bb-3ede-48df-924d-0f8348eecd21",
+        "title": "Report Generation After Completion",
+        "category": "happy_path",
+        "description": "Verify that completed run generates a report accessible via /api/reports.",
+        "preconditions": [
+          "Pipeline run completed successfully"
+        ],
+        "steps": [
+          {
+            "action": "api_get",
+            "selector": "/api/reports",
+            "value": null,
+            "assertion": "status_code == 200"
+          },
+          {
+            "action": "assert_json",
+            "selector": "response.body[0].run_id",
+            "value": "{run_id}",
+            "assertion": "equals"
+          }
+        ],
+        "expected_result": "New run_id appears in reports list with status 'completed'.",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/reports",
+          "happy_path"
+        ]
+      },
+      {
+        "id": "92f65715-3f11-466b-a794-fed13e846a23",
+        "title": "Empty Request Body Handling",
+        "category": "negative",
+        "description": "Verify behavior when POST body is missing or empty.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "api_post",
+            "selector": "/api/pipeline/run",
+            "value": "",
+            "assertion": "status_code == 422"
+          }
+        ],
+        "expected_result": "API returns 422 Unprocessable Entity due to missing body.",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run",
+          "negative"
+        ]
+      },
+      {
+        "id": "68689f47-0b37-4774-91a8-09cf0bca80a4",
+        "title": "Invalid JSON Payload",
+        "category": "negative",
+        "description": "Verify server rejects malformed JSON in request body.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "api_post",
+            "selector": "/api/pipeline/run",
+            "value": "{ invalid_json }",
+            "assertion": "status_code == 400"
+          }
+        ],
+        "expected_result": "API returns 400 Bad Request.",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run",
+          "negative"
+        ]
+      },
+      {
+        "id": "4f91f49e-8c2e-47da-afb7-25f840613f94",
+        "title": "Missing Required Label Field",
+        "category": "negative",
+        "description": "Verify validation error when required 'label' field is omitted.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "api_post",
+            "selector": "/api/pipeline/run",
+            "value": "{\"target_url\": \"https://example.com\"}",
+            "assertion": "status_code == 422"
+          },
+          {
+            "action": "assert_json",
+            "selector": "response.body.detail",
+            "value": "label",
+            "assertion": "contains"
+          }
+        ],
+        "expected_result": "Validation error indicates missing 'label' field.",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run",
+          "negative"
+        ]
+      },
+      {
+        "id": "e3966522-c649-44e3-a626-2115ed62b909",
+        "title": "Concurrent Pipeline Requests",
+        "category": "edge_case",
+        "description": "Verify system handles multiple simultaneous run requests without ID collision.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "parallel_post",
+            "selector": "/api/pipeline/run",
+            "value": "{\"label\": \"concurrent_test\"}",
+            "assertion": "count == 5"
+          },
+          {
+            "action": "assert_unique",
+            "selector": "response.body.run_id",
+            "value": null,
+            "assertion": "all_unique"
+          }
+        ],
+        "expected_result": "All 5 requests return unique UUIDs and 202 status.",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run",
+          "edge_case"
+        ]
+      },
+      {
+        "id": "b2b85a70-cb21-43b6-b59d-d56d96c19bce",
+        "title": "Large Payload Size Boundary",
+        "category": "edge_case",
+        "description": "Verify behavior when request payload exceeds standard size limits.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "api_post",
+            "selector": "/api/pipeline/run",
+            "value": "{\"label\": \"<large_string_5MB>\"}",
+            "assertion": "status_code in [202, 413]"
+          }
+        ],
+        "expected_result": "Request either accepts or returns 413 Payload Too Large.",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run",
+          "edge_case"
+        ]
+      },
+      {
+        "id": "32f692c4-d5ef-4301-b94a-6f88778a46ef",
+        "title": "Unauthorized Access Attempt",
+        "category": "security",
+        "description": "Verify access control when authentication headers are missing.",
+        "preconditions": [
+          "Auth middleware is enabled"
+        ],
+        "steps": [
+          {
+            "action": "api_post",
+            "selector": "/api/pipeline/run",
+            "value": "{\"label\": \"test\"}",
+            "assertion": "headers.Authorization == null"
+          },
+          {
+            "action": "assert_status",
+            "selector": "response",
+            "value": null,
+            "assertion": "status_code == 401"
+          }
+        ],
+        "expected_result": "API returns 401 Unauthorized.",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/pipeline/run",
+          "security"
+        ]
+      },
+      {
+        "id": "b3555830-8672-465a-9e04-4008a7ad2feb",
+        "title": "XSS Probe in Label Field",
+        "category": "security",
+        "description": "Verify that script tags in label field are sanitized or stored safely.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "api_post",
+            "selector": "/api/pipeline/run",
+            "value": "{\"label\": \"<script>alert(1)</script>\"}",
+            "assertion": "status_code == 202"
+          },
+          {
+            "action": "api_get",
+            "selector": "/api/reports",
+            "value": null,
+            "assertion": "body does not execute script"
+          }
+        ],
+        "expected_result": "Label is stored as text, script does not execute on retrieval.",
+        "tags": [
+          "app/api/routes/pipeline.py",
+          "/api/reports",
+          "security"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T22:43:55.287831",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_generated.py",
+      "content": "import os\nimport pytest\nimport json\nimport uuid\nimport time\nfrom playwright.sync_api import Page, expect\n\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\nAPI_BASE = f\"{BASE_URL}/api\"\n\n# SCENARIO_ID: 5da4ad91-9823-4760-84f2-737850e14468\ndef test_valid_pipeline_run_initiation_returns_202_and_run_id(page: Page):\n    \"\"\"Verify that a valid POST request to /api/pipeline/run returns 202 Accepted with a run_id.\"\"\"\n    # TODO: resolve PipelineRunRequest model definition not visible in context\n    page.goto(BASE_URL)\n    expect(page.locator(\"html\")).to_be_visible()\n\n    payload = {\"label\": \"smoke_test\", \"target_url\": \"https://example.com\"}\n    response = page.request.post(f\"{API_BASE}/pipeline/run\", json=payload)\n\n    assert response.status_code == 202, f\"Expected 202, got {response.status_code}\"\n    data = response.json()\n    assert \"run_id\" in data, \"Response missing run_id\"\n    assert uuid.UUID(data[\"run_id\"]), \"run_id is not a valid UUID\"\n    assert data.get(\"status\") == \"queued\", \"Status should be queued\"\n\n\n# SCENARIO_ID: 59927e15-0501-495d-8db2-446508c32bb3\ndef test_background_task_trigger_verification_sse_stream_opens(page: Page):\n    \"\"\"Ensure the background task is queued and status endpoint becomes available.\"\"\"\n    page.goto(BASE_URL)\n    expect(page.locator(\"html\")).to_be_visible()\n\n    # Initiate run first to get run_id\n    init_payload = {\"label\": \"sse_test\", \"target_url\": \"https://example.com\"}\n    init_response = page.request.post(f\"{API_BASE}/pipeline/run\", json=init_payload)\n    assert init_response.status_code == 202\n    run_id = init_response.json()[\"run_id\"]\n\n    # Check status endpoint\n    status_response = page.request.get(f\"{API_BASE}/pipeline/status/{run_id}\")\n    assert status_response.status_code == 200, f\"Expected 200, got {status_response.status_code}\"\n    text = status_response.text()\n    assert \"event: pipeline_stage\" in text, \"SSE stream should contain pipeline_stage event\"\n\n\n# SCENARIO_ID: 109455bb-3ede-48df-924d-0f8348eecd21\ndef test_report_generation_after_completion_lists_new_run_id(page: Page):\n    \"\"\"Verify that completed run generates a report accessible via /api/reports.\"\"\"\n    page.goto(BASE_URL)\n    expect(page.locator(\"html\")).to_be_visible()\n\n    # Assume run completed (simulated by direct check)\n    reports_response = page.request.get(f\"{API_BASE}/reports\")\n    assert reports_response.status_code == 200, f\"Expected 200, got {reports_response.status_code}\"\n    data = reports_response.json()\n    assert isinstance(data, list), \"Reports should be a list\"\n    # Verify structure exists (specific run_id check requires known ID from setup)\n    if len(data) > 0:\n        assert \"run_id\" in data[0], \"Report entry missing run_id\"\n\n\n# SCENARIO_ID: 92f65715-3f11-466b-a794-fed13e846a23\ndef test_empty_request_body_handling_returns_422(page: Page):\n    \"\"\"Verify behavior when POST body is missing or empty.\"\"\"\n    page.goto(BASE_URL)\n    expect(page.locator(\"html\")).to_be_visible()\n\n    response = page.request.post(f\"{API_BASE}/pipeline/run\", json={})\n    assert response.status_code == 422, f\"Expected 422, got {response.status_code}\"\n\n\n# SCENARIO_ID: 68689f47-0b37-4774-91a8-09cf0bca80a4\ndef test_invalid_json_payload_returns_400(page: Page):\n    \"\"\"Verify server rejects malformed JSON in request body.\"\"\"\n    page.goto(BASE_URL)\n    expect(page.locator(\"html\")).to_be_visible()\n\n    # Playwright request handles JSON serialization, so we send raw data to simulate bad JSON if possible\n    # Forcing raw content to simulate malformed JSON\n    response = page.request.post(f\"{API_BASE}/pipeline/run\", data=\"{ invalid_json }\")\n    assert response.status_code == 400, f\"Expected 400, got {response.status_code}\"\n\n\n# SCENARIO_ID: 4f91f49e-8c2e-47da-afb7-25f840613f94\ndef test_missing_required_label_field_returns_422(page: Page):\n    \"\"\"Verify validation error when required 'label' field is omitted.\"\"\"\n    # TODO: resolve PipelineRunRequest model definition not visible in context\n    page.goto(BASE_URL)\n    expect(page.locator(\"html\")).to_be_visible()\n\n    payload = {\"target_url\": \"https://example.com\"}\n    response = page.request.post(f\"{API_BASE}/pipeline/run\", json=payload)\n    assert response.status_code == 422, f\"Expected 422, got {response.status_code}\"\n    data = response.json()\n    assert \"detail\" in data, \"Response should contain detail\"\n    assert \"label\" in str(data[\"detail\"]).lower(), \"Error detail should mention label\"\n\n\n# SCENARIO_ID: e3966522-c649-44e3-a626-2115ed62b909\ndef test_concurrent_pipeline_requests_return_unique_ids(page: Page):\n    \"\"\"Verify system handles multiple simultaneous run requests without ID collision.\"\"\"\n    # TODO: resolve PipelineRunRequest model definition not visible in context\n    page.goto(BASE_URL)\n    expect(page.locator(\"html\")).to_be_visible()\n\n    payload = {\"label\": \"concurrent_test\"}\n    run_ids = []\n    for _ in range(5):\n        response = page.request.post(f\"{API_BASE}/pipeline/run\", json=payload)\n        assert response.status_code == 202\n        run_ids.append(response.json()[\"run_id\"])\n\n    assert len(run_ids) == 5, \"Should have 5 run IDs\"\n    assert len(set(run_ids)) == 5, \"All run IDs should be unique\"\n\n\n# SCENARIO_ID: b2b85a70-cb21-43b6-b59d-d56d96c19bce\ndef test_large_payload_size_boundary_handling(page: Page):\n    \"\"\"Verify behavior when request payload exceeds standard size limits.\"\"\"\n    # TODO: resolve PipelineRunRequest model definition not visible in context\n    page.goto(BASE_URL)\n    expect(page.locator(\"html\")).to_be_visible()\n\n    large_string = \"A\" * (5 * 1024 * 1024)  # 5MB\n    payload = {\"label\": large_string}\n    response = page.request.post(f\"{API_BASE}/pipeline/run\", json=payload)\n    assert response.status_code in [202, 413], f\"Expected 202 or 413, got {response.status_code}\"\n\n\n# SCENARIO_ID: 32f692c4-d5ef-4301-b94a-6f88778a46ef\ndef test_unauthorized_access_attempt_returns_401(page: Page):\n    \"\"\"Verify access control when authentication headers are missing.\"\"\"\n    # TODO: resolve PipelineRunRequest model definition not visible in context\n    page.goto(BASE_URL)\n    expect(page.locator(\"html\")).to_be_visible()\n\n    payload = {\"label\": \"test\"}\n    # Do not send Authorization header\n    response = page.request.post(f\"{API_BASE}/pipeline/run\", json=payload, headers={})\n    assert response.status_code == 401, f\"Expected 401, got {response.status_code}\"\n\n\n# SCENARIO_ID: b3555830-8672-465a-9e04-4008a7ad2feb\ndef test_xss_probe_in_label_field_sanitized(page: Page):\n    \"\"\"Verify that script tags in label field are sanitized or stored safely.\"\"\"\n    # TODO: resolve PipelineRunRequest model definition not visible in context\n    page.goto(BASE_URL)\n    expect(page.locator(\"html\")).to_be_visible()\n\n    xss_payload = {\"label\": \"<script>alert(1)</script>\"}\n    post_response = page.request.post(f\"{API_BASE}/pipeline/run\", json=xss_payload)\n    assert post_response.status_code == 202\n\n    reports_response = page.request.get(f\"{API_BASE}/reports\")\n    assert reports_response.status_code == 200\n    data = reports_response.json()\n    # Verify label is stored as text, not executed (static check)\n    found_entry = None\n    for entry in data:\n        if entry.get(\"label\") == \"<script>alert(1)</script>\":\n            found_entry = entry\n            break\n    assert found_entry is not None, \"XSS payload should be stored as text\"\n    # In a real UI test, we would verify the script does not execute upon render\n",
+      "scenario_ids": [
+        "5da4ad91-9823-4760-84f2-737850e14468",
+        "59927e15-0501-495d-8db2-446508c32bb3",
+        "109455bb-3ede-48df-924d-0f8348eecd21",
+        "92f65715-3f11-466b-a794-fed13e846a23",
+        "68689f47-0b37-4774-91a8-09cf0bca80a4",
+        "4f91f49e-8c2e-47da-afb7-25f840613f94",
+        "e3966522-c649-44e3-a626-2115ed62b909",
+        "b2b85a70-cb21-43b6-b59d-d56d96c19bce",
+        "32f692c4-d5ef-4301-b94a-6f88778a46ef",
+        "b3555830-8672-465a-9e04-4008a7ad2feb"
+      ],
+      "generated_at": "2026-03-14T22:44:53.849444"
+    }
+  ],
+  "execution_results": [
+    {
+      "test_title": "test_valid_pipeline_run_initiation_returns_202_and_run_id[chromium]",
+      "spec_file": "generated_tests/d05e2df4-1b91-4ad6-8f6a-b7d3764de2f9/test_generated.py",
+      "status": "failed",
+      "duration_ms": 63,
+      "error_message": "TypeError: APIRequestContext.post() got an unexpected keyword argument 'json'",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_background_task_trigger_verification_sse_stream_opens[chromium]",
+      "spec_file": "generated_tests/d05e2df4-1b91-4ad6-8f6a-b7d3764de2f9/test_generated.py",
+      "status": "failed",
+      "duration_ms": 16,
+      "error_message": "TypeError: APIRequestContext.post() got an unexpected keyword argument 'json'",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_report_generation_after_completion_lists_new_run_id[chromium]",
+      "spec_file": "generated_tests/d05e2df4-1b91-4ad6-8f6a-b7d3764de2f9/test_generated.py",
+      "status": "failed",
+      "duration_ms": 333,
+      "error_message": "AttributeError: 'APIResponse' object has no attribute 'status_code'. Did you mean: 'status_text'?",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_empty_request_body_handling_returns_422[chromium]",
+      "spec_file": "generated_tests/d05e2df4-1b91-4ad6-8f6a-b7d3764de2f9/test_generated.py",
+      "status": "failed",
+      "duration_ms": 27,
+      "error_message": "TypeError: APIRequestContext.post() got an unexpected keyword argument 'json'",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_invalid_json_payload_returns_400[chromium]",
+      "spec_file": "generated_tests/d05e2df4-1b91-4ad6-8f6a-b7d3764de2f9/test_generated.py",
+      "status": "failed",
+      "duration_ms": 19,
+      "error_message": "AttributeError: 'APIResponse' object has no attribute 'status_code'. Did you mean: 'status_text'?",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_missing_required_label_field_returns_422[chromium]",
+      "spec_file": "generated_tests/d05e2df4-1b91-4ad6-8f6a-b7d3764de2f9/test_generated.py",
+      "status": "failed",
+      "duration_ms": 15,
+      "error_message": "TypeError: APIRequestContext.post() got an unexpected keyword argument 'json'",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_concurrent_pipeline_requests_return_unique_ids[chromium]",
+      "spec_file": "generated_tests/d05e2df4-1b91-4ad6-8f6a-b7d3764de2f9/test_generated.py",
+      "status": "failed",
+      "duration_ms": 16,
+      "error_message": "TypeError: APIRequestContext.post() got an unexpected keyword argument 'json'",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_large_payload_size_boundary_handling[chromium]",
+      "spec_file": "generated_tests/d05e2df4-1b91-4ad6-8f6a-b7d3764de2f9/test_generated.py",
+      "status": "failed",
+      "duration_ms": 16,
+      "error_message": "TypeError: APIRequestContext.post() got an unexpected keyword argument 'json'",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_unauthorized_access_attempt_returns_401[chromium]",
+      "spec_file": "generated_tests/d05e2df4-1b91-4ad6-8f6a-b7d3764de2f9/test_generated.py",
+      "status": "failed",
+      "duration_ms": 15,
+      "error_message": "TypeError: APIRequestContext.post() got an unexpected keyword argument 'json'",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_xss_probe_in_label_field_sanitized[chromium]",
+      "spec_file": "generated_tests/d05e2df4-1b91-4ad6-8f6a-b7d3764de2f9/test_generated.py",
+      "status": "failed",
+      "duration_ms": 16,
+      "error_message": "TypeError: APIRequestContext.post() got an unexpected keyword argument 'json'",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    }
+  ],
+  "heal_results": [],
+  "error": null
+}

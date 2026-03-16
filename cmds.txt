@@ -1,0 +1,22 @@
+Install dependencies:
+uv sync (root folder of project)
+npm install (in frontend folder)
+
+
+index repo:
+PYTHON_JIT=1 uv run scripts/index_repo.py /Users/mrosato/Documents/projects/tests/QC/app --reset
+
+backend:
+export BASE_URL=http://localhost:8000 & uv run main.py
+
+frontend (in frontend folder):
+npm run dev
+
+Test repo:
+PYTHON_JIT=1 uv run python scripts/query_context.py "how do I add a new user?"
+
+PyTest:
+PYTHON_JIT=1 uv run pytest --json-report -q generated_tests/.../*.py
+
+
+

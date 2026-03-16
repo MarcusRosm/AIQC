@@ -1,0 +1,32 @@
+{
+  "run_id": "99f3f8cb-671d-4a7b-82e5-ff7e4ade6723",
+  "label": "Pipeline test - take 2",
+  "started_at": "2026-03-14T21:23:40.695486",
+  "completed_at": null,
+  "status": "failed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": null,
+  "generated_specs": [],
+  "execution_results": [],
+  "heal_results": [],
+  "error": "Scenario generation failed after all retries.\nDetail: 2 validation errors for TestStep\nvalue\n  Input should be a valid string [type=string_type, input_value={'url': '/api/pipeline/ru...: {'suite': 'smoke'}}]}}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/string_type\nassertion\n  Input should be a valid string [type=string_type, input_value={'status_code': 202, 'jso...': ['run_id', 'status']}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.12/v/string_type"
+}

@@ -1,0 +1,87 @@
+diff --git a/app/api/routes/health.py b/app/api/routes/health.py
+index a1b2c3d..e5f6g7h 100644
+--- a/app/api/routes/health.py
++++ b/app/api/routes/health.py
+@@ -7,12 +7,16 @@
+ from __future__ import annotations
+ 
+ import httpx
++import time
++from datetime import datetime
+ 
+ from fastapi import APIRouter
+ 
+ from app.core.config import get_settings
+ from app.core.logging import get_logger
+ from app.rag.vector_store import ChromaStore
++
++START_TIME = time.time()
+ 
+ logger = get_logger(__name__)
+ router = APIRouter(prefix="/api/health", tags=["health"])
+@@ -47,11 +51,14 @@
+         logger.warning("ChromaDB health check failed: %s", exc)
+ 
+     status = "ok" if (ollama_ok and chroma_ok) else "degraded"
++    uptime_seconds = int(time.time() - START_TIME)
++    
+     return {
+         "status": status,
+         "ollama": ollama_ok,
+         "chromadb": chroma_ok,
+         "llm_model": settings.OLLAMA_LLM_MODEL,
+         "embed_model": settings.OLLAMA_EMBED_MODEL,
++        "uptime": f"{uptime_seconds}s",
++        "server_time": datetime.now().isoformat(),
+     }
+
+
+--- Test #2 ---
+
+diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py
+index a1b2c3d..e5f6g7h 100644
+--- a/app/api/routes/pipeline.py
++++ b/app/api/routes/pipeline.py
+@@ -23,10 +23,14 @@
+ 
+ @router.post("/run", status_code=202)
+ async def start_run(
+     body: PipelineRunRequest,
+     background_tasks: BackgroundTasks,
+ ) -> dict:
+     """
+     Start a new pipeline run in the background.
+     """
++    # Input Validation Guard
++    if not body.diff_text or len(body.diff_text.strip()) < 10:
++        raise HTTPException(status_code=400, detail="diff_text must be at least 10 characters long.")
++        
+     orchestrator = PipelineOrchestrator()
+     # A temporary orchestration is needed to get the run_id before starting
+
+
+--- Test #3 ---
+
+diff --git a/frontend/src/components/StatusIndicator.tsx b/frontend/src/components/StatusIndicator.tsx
+--- a/frontend/src/components/StatusIndicator.tsx
++++ b/frontend/src/components/StatusIndicator.tsx
+@@ -10,6 +10,7 @@
+ export function StatusIndicator({ status }: { status: "ok" | "degraded" }) {
+   const isOk = status === "ok";
+   return (
+-    <div className={`status-pill ${isOk ? 'bg-green-500' : 'bg-red-500'}`}>
+-      {isOk ? "All Systems Operational" : "Degraded Performance"}
++    <div className={`status-pill p-4 rounded shadow-md ${isOk ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`} data-testid="status-indicator">
++      <span className="font-bold text-lg" data-testid="status-text">{isOk ? "All Systems Operational" : "Degraded Performance"}</span>
++      {!isOk && <button className="ml-4 px-2 py-1 bg-white text-red-500 rounded" onClick={() => window.location.reload()}>Retry Connection</button>}
+     </div>
+   );
+ }
+diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -25,2 +25,3 @@
+       <header>
+         <h1>QA Platform Dashboard</h1>
++        <StatusIndicator status={healthStatus} />
+       </header>

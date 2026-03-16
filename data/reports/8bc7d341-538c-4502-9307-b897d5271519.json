@@ -1,0 +1,351 @@
+{
+  "run_id": "8bc7d341-538c-4502-9307-b897d5271519",
+  "label": "Health API tests",
+  "started_at": "2026-03-15T14:32:48.230692",
+  "completed_at": "2026-03-15T14:34:36.321827",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/health.py",
+        "change_type": "modified",
+        "additions": 8,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/health.py b/app/api/routes/health.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/health.py\n+++ b/app/api/routes/health.py\n@@ -7,12 +7,16 @@\n from __future__ import annotations\n \n import httpx\n+import time\n+from datetime import datetime\n \n from fastapi import APIRouter\n \n from app.core.config import get_settings\n from app.core.logging import get_logger\n from app.rag.vector_store import ChromaStore\n+\n+START_TIME = time.time()\n \n logger = get_logger(__name__)\n router = APIRouter(prefix=\"/api/health\", tags=[\"health\"])\n@@ -47,11 +51,14 @@\n         logger.warning(\"ChromaDB health check failed: %s\", exc)\n \n     status = \"ok\" if (ollama_ok and chroma_ok) else \"degraded\"\n+    uptime_seconds = int(time.time() - START_TIME)\n+    \n     return {\n         \"status\": status,\n         \"ollama\": ollama_ok,\n         \"chromadb\": chroma_ok,\n         \"llm_model\": settings.OLLAMA_LLM_MODEL,\n         \"embed_model\": settings.OLLAMA_EMBED_MODEL,\n+        \"uptime\": f\"{uptime_seconds}s\",\n+        \"server_time\": datetime.now().isoformat(),\n     }"
+      }
+    ],
+    "summary": "Changed 1 file(s): health.py",
+    "total_additions": 8,
+    "total_deletions": 0,
+    "affected_routes": [],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "c4bd8b6e-47e0-4f6f-be96-a489319ff68d",
+        "title": "Verify successful health check when all dependencies are reachable",
+        "category": "happy_path",
+        "description": "Ensure the /api/health endpoint returns 200 OK and identifies both ollama and chromadb as healthy.",
+        "preconditions": [
+          "Ollama service is running at OLLAMA_BASE_URL",
+          "ChromaDB is initialized and accessible"
+        ],
+        "steps": [
+          {
+            "action": "API GET",
+            "selector": null,
+            "value": "/api/health",
+            "assertion": "status_code == 200"
+          },
+          {
+            "action": "Validate JSON body",
+            "selector": null,
+            "value": "$.ollama == true && $.chromadb == true",
+            "assertion": "Both dependencies should report true"
+          }
+        ],
+        "expected_result": "The API returns a 200 status code and a JSON object confirming all services are healthy.",
+        "tags": [
+          "api",
+          "smoke"
+        ]
+      },
+      {
+        "id": "f2d15b38-7af9-464f-9031-044378f0cb5b",
+        "title": "Verify health check behavior when Ollama is unreachable",
+        "category": "negative",
+        "description": "Simulate a connection failure to the Ollama service and check the API response.",
+        "preconditions": [
+          "Ollama service is stopped or network is restricted"
+        ],
+        "steps": [
+          {
+            "action": "API GET",
+            "selector": null,
+            "value": "/api/health",
+            "assertion": "status_code == 200"
+          },
+          {
+            "action": "Validate JSON body",
+            "selector": null,
+            "value": "$.ollama == false",
+            "assertion": "Ollama status should be false"
+          }
+        ],
+        "expected_result": "The API returns 200 but the JSON payload indicates Ollama health is false.",
+        "tags": [
+          "api",
+          "resilience"
+        ]
+      },
+      {
+        "id": "7162fbf2-cadb-401d-a128-13bff44aa515",
+        "title": "Verify health check behavior when Ollama request times out",
+        "category": "edge_case",
+        "description": "Ensure the 3.0s timeout in health.py correctly handles a slow Ollama response.",
+        "preconditions": [
+          "Ollama service is configured to delay responses by > 3 seconds"
+        ],
+        "steps": [
+          {
+            "action": "API GET",
+            "selector": null,
+            "value": "/api/health",
+            "assertion": "Response received within expected timeframe"
+          },
+          {
+            "action": "Validate JSON body",
+            "selector": null,
+            "value": "$.ollama == false",
+            "assertion": "Ollama should be marked unhealthy due to timeout exception"
+          }
+        ],
+        "expected_result": "The request does not hang indefinitely and reports Ollama as unhealthy after 3 seconds.",
+        "tags": [
+          "api",
+          "performance"
+        ]
+      },
+      {
+        "id": "2ec18110-31e9-4fb1-85d2-75fb7afc0f58",
+        "title": "Verify ChromaDB initialization failure handling",
+        "category": "negative",
+        "description": "Ensure the API catches exceptions during ChromaDB initialization.",
+        "preconditions": [
+          "ChromaDB persistent directory is read-only or corrupted"
+        ],
+        "steps": [
+          {
+            "action": "API GET",
+            "selector": null,
+            "value": "/api/health",
+            "assertion": "status_code == 200"
+          },
+          {
+            "action": "Validate JSON body",
+            "selector": null,
+            "value": "$.chromadb == false",
+            "assertion": "ChromaDB status should be false"
+          }
+        ],
+        "expected_result": "The API handles the ChromaStore exception and reports chromadb as false.",
+        "tags": [
+          "api",
+          "database"
+        ]
+      },
+      {
+        "id": "7ce20cf9-e3d8-4081-bd47-88870b2adcf0",
+        "title": "Verify Health API documentation in Swagger UI",
+        "category": "happy_path",
+        "description": "Verify the health endpoint is correctly exposed in the generated OpenAPI documentation.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/docs",
+            "assertion": "Page loaded"
+          },
+          {
+            "action": "click",
+            "selector": "get_by_role('button', name='health', exact=True)",
+            "value": null,
+            "assertion": "Health section expands"
+          },
+          {
+            "action": "check visibility",
+            "selector": "get_by_text('/api/health')",
+            "value": null,
+            "assertion": "GET /api/health endpoint is visible"
+          }
+        ],
+        "expected_result": "The health check route is documented with appropriate tags and descriptions.",
+        "tags": [
+          "ui",
+          "documentation"
+        ]
+      },
+      {
+        "id": "109ac284-9bdb-4cb3-8e09-a7bd269fc30c",
+        "title": "Verify CORS headers for Health API",
+        "category": "security",
+        "description": "Ensure the health endpoint respects the CORSMiddleware configuration.",
+        "preconditions": [
+          "App is running with settings.DEBUG = False"
+        ],
+        "steps": [
+          {
+            "action": "API OPTIONS",
+            "selector": null,
+            "value": "/api/health",
+            "assertion": "Headers contain Access-Control-Allow-Origin"
+          },
+          {
+            "action": "Validate Header",
+            "selector": null,
+            "value": "Origin: http://external.com",
+            "assertion": "Access-Control-Allow-Origin should only allow http://localhost:5173"
+          }
+        ],
+        "expected_result": "CORS headers correctly restrict access based on the application configuration.",
+        "tags": [
+          "security",
+          "api"
+        ]
+      },
+      {
+        "id": "56961f77-60c5-4cbf-a43c-f04603da7fef",
+        "title": "Verify Health API ignores unauthorized methods",
+        "category": "security",
+        "description": "Ensure only GET requests are permitted on the health endpoint.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "API POST",
+            "selector": null,
+            "value": "/api/health",
+            "assertion": "status_code == 405"
+          },
+          {
+            "action": "API DELETE",
+            "selector": null,
+            "value": "/api/health",
+            "assertion": "status_code == 405"
+          }
+        ],
+        "expected_result": "Methods other than GET return a 405 Method Not Allowed status.",
+        "tags": [
+          "security",
+          "api"
+        ]
+      },
+      {
+        "id": "dad823a3-40d2-429f-b301-fdfe643519bd",
+        "title": "Verify Health Check integrity during simultaneous load",
+        "category": "edge_case",
+        "description": "Ensure multiple concurrent requests to the health endpoint do not exhaust connection pools.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "Execute 50 concurrent GET requests",
+            "selector": null,
+            "value": "/api/health",
+            "assertion": "All status_codes == 200"
+          }
+        ],
+        "expected_result": "The system handles concurrent health checks without failing dependencies or leaking httpx clients.",
+        "tags": [
+          "performance",
+          "concurrency"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-15T14:33:01.390332",
+    "source_diff_summary": "Changed 1 file(s): health.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_health_endpoints.py",
+      "content": "import os\nimport pytest\nfrom playwright.sync_api import Page, expect\n\n# Configuration\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\nHEALTH_ENDPOINT = f\"{BASE_URL}/api/health\"\nDOCS_URL = f\"{BASE_URL}/api/docs\"\n\n# SCENARIO_ID: c4bd8b6e-47e0-4f6f-be96-a489319ff68d\ndef test_health_check_returns_success_for_all_dependencies(page: Page):\n    \"\"\"Verify successful health check when all dependencies are reachable.\"\"\"\n    response = page.request.get(HEALTH_ENDPOINT)\n    expect(response).to_be_ok()\n    \n    payload = response.json()\n    # Asserting both dependencies are true as per snippet 2 and scenario requirements\n    assert payload.get(\"ollama\") is True, f\"Expected ollama to be True, got {payload.get('ollama')}\"\n    assert payload.get(\"chromadb\") is True, f\"Expected chromadb to be True, got {payload.get('chromadb')}\"\n\n# SCENARIO_ID: f2d15b38-7af9-464f-9031-044378f0cb5b\ndef test_health_check_reports_unhealthy_when_ollama_unreachable(page: Page):\n    \"\"\"Verify health check behavior when Ollama is unreachable.\"\"\"\n    response = page.request.get(HEALTH_ENDPOINT)\n    # The application is designed to return 200 even if dependencies fail, \n    # but the body indicates the failure.\n    expect(response).to_be_ok()\n    \n    payload = response.json()\n    assert payload.get(\"ollama\") is False, \"Ollama should be reported as False (unhealthy)\"\n\n# SCENARIO_ID: 7162fbf2-cadb-401d-a128-13bff44aa515\ndef test_health_check_reports_unhealthy_on_ollama_timeout(page: Page):\n    \"\"\"Verify health check behavior when Ollama request times out (3.0s limit).\"\"\"\n    response = page.request.get(HEALTH_ENDPOINT)\n    expect(response).to_be_ok()\n    \n    payload = response.json()\n    # The 3.0s timeout in health.py should trigger the exception block\n    assert payload.get(\"ollama\") is False, \"Ollama should be False due to timeout exception\"\n\n# SCENARIO_ID: 2ec18110-31e9-4fb1-85d2-75fb7afc0f58\ndef test_health_check_reports_unhealthy_on_chromadb_initialization_failure(page: Page):\n    \"\"\"Verify ChromaDB initialization failure handling.\"\"\"\n    response = page.request.get(HEALTH_ENDPOINT)\n    expect(response).to_be_ok()\n    \n    payload = response.json()\n    assert payload.get(\"chromadb\") is False, \"ChromaDB should be reported as False on init failure\"\n\n# SCENARIO_ID: 7ce20cf9-e3d8-4081-bd47-88870b2adcf0\ndef test_health_api_is_documented_in_swagger_ui(page: Page):\n    \"\"\"Verify the health endpoint is correctly exposed in the generated OpenAPI documentation.\"\"\"\n    page.goto(DOCS_URL)\n    \n    # Use semantic locators for Swagger UI elements\n    health_tag_button = page.get_by_role(\"button\", name=\"health\", exact=True)\n    health_tag_button.click()\n    \n    health_endpoint_text = page.get_by_text(\"/api/health\", exact=True)\n    expect(health_endpoint_text).to_be_visible()\n\n# SCENARIO_ID: 109ac284-9bdb-4cb3-8e09-a7bd269fc30c\ndef test_health_api_enforces_cors_headers(page: Page):\n    \"\"\"Ensure the health endpoint respects the CORSMiddleware configuration.\"\"\"\n    unauthorized_origin = \"http://external.com\"\n    allowed_origin = \"http://localhost:5173\"\n\n    response = page.request.fetch(\n        HEALTH_ENDPOINT,\n        method=\"OPTIONS\",\n        headers={\n            \"Origin\": unauthorized_origin,\n            \"Access-Control-Request-Method\": \"GET\"\n        }\n    )\n    \n    # Access-Control-Allow-Origin should not be the unauthorized origin\n    cors_header = response.headers.get(\"access-control-allow-origin\")\n    assert cors_header != unauthorized_origin, f\"CORS should not allow {unauthorized_origin}\"\n    # If not DEBUG, it should match the allowed origin if present\n    if cors_header:\n        assert cors_header == allowed_origin\n\n# SCENARIO_ID: 56961f77-60c5-4cbf-a43c-f04603da7fef\ndef test_health_api_rejects_unauthorized_methods(page: Page):\n    \"\"\"Ensure only GET requests are permitted on the health endpoint.\"\"\"\n    post_response = page.request.post(HEALTH_ENDPOINT)\n    # expect(post_response).not_to_be_ok() - status 405 is specific\n    assert post_response.status == 405, f\"Expected 405 for POST, got {post_response.status}\"\n    \n    delete_response = page.request.delete(HEALTH_ENDPOINT)\n    assert delete_response.status == 405, f\"Expected 405 for DELETE, got {delete_response.status}\"\n\n# SCENARIO_ID: dad823a3-40d2-429f-b301-fdfe643519bd\ndef test_health_check_handles_concurrent_requests(page: Page):\n    \"\"\"Ensure multiple requests to the health endpoint are handled without failure.\"\"\"\n    # Simulating load via multiple sequential requests in sync mode\n    # Note: For true async concurrency in Playwright, async_api.gather would be used.\n    responses = []\n    for _ in range(50):\n        responses.append(page.request.get(HEALTH_ENDPOINT))\n    \n    for resp in responses:\n        expect(resp).to_be_ok()\n        assert \"ollama\" in resp.json(), \"Response payload missing health keys under load\"\n\"",
+      "scenario_ids": [
+        "c4bd8b6e-47e0-4f6f-be96-a489319ff68d",
+        "f2d15b38-7af9-464f-9031-044378f0cb5b",
+        "7162fbf2-cadb-401d-a128-13bff44aa515",
+        "2ec18110-31e9-4fb1-85d2-75fb7afc0f58",
+        "7ce20cf9-e3d8-4081-bd47-88870b2adcf0",
+        "109ac284-9bdb-4cb3-8e09-a7bd269fc30c",
+        "56961f77-60c5-4cbf-a43c-f04603da7fef",
+        "dad823a3-40d2-429f-b301-fdfe643519bd"
+      ],
+      "generated_at": "2026-03-15T14:33:26.477085"
+    }
+  ],
+  "execution_results": [
+    {
+      "test_title": "test_health_check_returns_success_for_all_dependencies[chromium]",
+      "spec_file": "generated_tests/8bc7d341-538c-4502-9307-b897d5271519/test_health_endpoints.py",
+      "status": "passed",
+      "duration_ms": 338,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_check_reports_unhealthy_when_ollama_unreachable[chromium]",
+      "spec_file": "generated_tests/8bc7d341-538c-4502-9307-b897d5271519/test_health_endpoints.py",
+      "status": "failed",
+      "duration_ms": 19,
+      "error_message": "AssertionError: Ollama should be reported as False (unhealthy)\nassert True is False\n +  where True = <built-in method get of dict object at 0x10c6231c0>('ollama')\n +    where <built-in method get of dict object at 0x10c6231c0> = {'chromadb': True, 'embed_model': 'bge-m3', 'llm_model': 'gemini-3-flash-preview', 'ollama': True, ...}.get",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_check_reports_unhealthy_on_ollama_timeout[chromium]",
+      "spec_file": "generated_tests/8bc7d341-538c-4502-9307-b897d5271519/test_health_endpoints.py",
+      "status": "failed",
+      "duration_ms": 21,
+      "error_message": "AssertionError: Ollama should be False due to timeout exception\nassert True is False\n +  where True = <built-in method get of dict object at 0x10c636980>('ollama')\n +    where <built-in method get of dict object at 0x10c636980> = {'chromadb': True, 'embed_model': 'bge-m3', 'llm_model': 'gemini-3-flash-preview', 'ollama': True, ...}.get",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_check_reports_unhealthy_on_chromadb_initialization_failure[chromium]",
+      "spec_file": "generated_tests/8bc7d341-538c-4502-9307-b897d5271519/test_health_endpoints.py",
+      "status": "failed",
+      "duration_ms": 17,
+      "error_message": "AssertionError: ChromaDB should be reported as False on init failure\nassert True is False\n +  where True = <built-in method get of dict object at 0x10c6aacc0>('chromadb')\n +    where <built-in method get of dict object at 0x10c6aacc0> = {'chromadb': True, 'embed_model': 'bge-m3', 'llm_model': 'gemini-3-flash-preview', 'ollama': True, ...}.get",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_api_is_documented_in_swagger_ui[chromium]",
+      "spec_file": "generated_tests/8bc7d341-538c-4502-9307-b897d5271519/test_health_endpoints.py",
+      "status": "failed",
+      "duration_ms": 30478,
+      "error_message": "playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for get_by_role(\"button\", name=\"health\", exact=True)",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_api_enforces_cors_headers[chromium]",
+      "spec_file": "generated_tests/8bc7d341-538c-4502-9307-b897d5271519/test_health_endpoints.py",
+      "status": "passed",
+      "duration_ms": 303,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_api_rejects_unauthorized_methods[chromium]",
+      "spec_file": "generated_tests/8bc7d341-538c-4502-9307-b897d5271519/test_health_endpoints.py",
+      "status": "passed",
+      "duration_ms": 2,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_check_handles_concurrent_requests[chromium]",
+      "spec_file": "generated_tests/8bc7d341-538c-4502-9307-b897d5271519/test_health_endpoints.py",
+      "status": "passed",
+      "duration_ms": 688,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    }
+  ],
+  "heal_results": [],
+  "error": null
+}

@@ -1,0 +1,337 @@
+{
+  "run_id": "165761d7-ca4b-4f40-86cf-e4be7be68a6f",
+  "label": "Pipeline test",
+  "started_at": "2026-03-14T23:12:49.353590",
+  "completed_at": "2026-03-14T23:13:59.751151",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "1c16faf1-ae73-429e-89f8-d24ab3dbaa91",
+        "title": "Successfully trigger a new pipeline run via API",
+        "category": "happy_path",
+        "description": "Verify that a POST request to the pipeline run endpoint initiates a background task and returns a 202 status code with a run ID.",
+        "preconditions": [
+          "API service is running",
+          "Pipeline configuration is valid"
+        ],
+        "steps": [
+          {
+            "action": "request",
+            "selector": "POST",
+            "value": "/api/pipeline/run",
+            "assertion": "response.status == 202"
+          },
+          {
+            "action": "check_json",
+            "selector": "run_id",
+            "value": "is_not_null",
+            "assertion": "The response must contain a valid run_id string"
+          }
+        ],
+        "expected_result": "A 202 Accepted status code and a JSON body containing a unique run_id.",
+        "tags": [
+          "api",
+          "pipeline",
+          "backend"
+        ]
+      },
+      {
+        "id": "8af3882c-6071-4e8e-9cf5-4279c8be9c3f",
+        "title": "Monitor pipeline progress via SSE stream",
+        "category": "happy_path",
+        "description": "Ensure the client can connect to the SSE endpoint and receive progress events for a valid run_id.",
+        "preconditions": [
+          "A pipeline run has been successfully started",
+          "A valid run_id is available"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/pipeline/status/{run_id}",
+            "assertion": "Connection established as EventStream"
+          },
+          {
+            "action": "wait_for_event",
+            "selector": "message",
+            "value": null,
+            "assertion": "Event data contains pipeline stage details"
+          }
+        ],
+        "expected_result": "The server streams PipelineEvents correctly until completion or disconnect.",
+        "tags": [
+          "api",
+          "sse",
+          "streaming"
+        ]
+      },
+      {
+        "id": "98a10d9b-5e28-4855-b5ce-2acda365089c",
+        "title": "Attempt to get status for non-existent run_id",
+        "category": "negative",
+        "description": "Verify that the SSE status endpoint returns a 404 error when an invalid or completed run_id is provided.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "request",
+            "selector": "GET",
+            "value": "/api/pipeline/status/invalid-id-999",
+            "assertion": "response.status == 404"
+          },
+          {
+            "action": "check_json",
+            "selector": "detail",
+            "value": "Run 'invalid-id-999' not found or already completed.",
+            "assertion": "Error message matches expected format"
+          }
+        ],
+        "expected_result": "API returns 404 Not Found with a descriptive error message.",
+        "tags": [
+          "api",
+          "error-handling"
+        ]
+      },
+      {
+        "id": "db74c615-cf64-4bd0-82aa-6cb648e6bb5a",
+        "title": "Trigger pipeline run with malformed request body",
+        "category": "negative",
+        "description": "Ensure the API rejects requests that do not conform to the PipelineRunRequest schema.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "request",
+            "selector": "POST",
+            "value": "/api/pipeline/run",
+            "assertion": "response.status == 422"
+          }
+        ],
+        "expected_result": "API returns 422 Unprocessable Entity due to schema validation failure.",
+        "tags": [
+          "api",
+          "validation"
+        ]
+      },
+      {
+        "id": "49cad32d-1f07-4197-8732-69e972d9c00d",
+        "title": "Delete a completed pipeline report",
+        "category": "happy_path",
+        "description": "Verify that a specific report can be deleted using its run_id.",
+        "preconditions": [
+          "A report exists in the reports directory"
+        ],
+        "steps": [
+          {
+            "action": "request",
+            "selector": "DELETE",
+            "value": "/api/reports/{run_id}",
+            "assertion": "response.status == 204"
+          },
+          {
+            "action": "request",
+            "selector": "GET",
+            "value": "/api/reports/{run_id}",
+            "assertion": "response.status == 404"
+          }
+        ],
+        "expected_result": "The report is successfully removed from the file system and is no longer accessible via API.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      },
+      {
+        "id": "8b3b8f0c-3b6e-4f9f-8aff-462dfde965aa",
+        "title": "Concurrent pipeline execution handling",
+        "category": "edge_case",
+        "description": "Trigger multiple pipeline runs simultaneously to ensure unique run_id generation and independent SSE buses.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "request",
+            "selector": "POST",
+            "value": "/api/pipeline/run",
+            "assertion": "First run_id returned"
+          },
+          {
+            "action": "request",
+            "selector": "POST",
+            "value": "/api/pipeline/run",
+            "assertion": "Second run_id returned"
+          }
+        ],
+        "expected_result": "Both pipelines run concurrently without resource conflict or ID collision.",
+        "tags": [
+          "concurrency",
+          "performance"
+        ]
+      },
+      {
+        "id": "7558369e-8c71-459a-a8d3-5cabfac093d7",
+        "title": "Directory traversal protection on report retrieval",
+        "category": "security",
+        "description": "Test for path traversal vulnerability by attempting to access files outside the reports directory using the run_id parameter.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "request",
+            "selector": "GET",
+            "value": "/api/reports/../../etc/passwd",
+            "assertion": "response.status == 404"
+          }
+        ],
+        "expected_result": "The application should sanitize the run_id or rely on the OS/FastAPI to prevent traversal, returning a 404 for invalid IDs.",
+        "tags": [
+          "security",
+          "owasp",
+          "traversal"
+        ]
+      },
+      {
+        "id": "b66f18ed-ea40-44ad-aa63-abf02164e5df",
+        "title": "Retrieve report details with valid run_id",
+        "category": "happy_path",
+        "description": "Verify the full details of a completed run can be retrieved from the reports endpoint.",
+        "preconditions": [
+          "A run has finished and its JSON report is saved"
+        ],
+        "steps": [
+          {
+            "action": "request",
+            "selector": "GET",
+            "value": "/api/reports/{run_id}",
+            "assertion": "response.status == 200"
+          }
+        ],
+        "expected_result": "A full JSON representation of the PipelineRun object is returned.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T23:13:02.327548",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_pipeline_reports.py",
+      "content": "import os\nimport pytest\nfrom playwright.sync_api import Page, expect\n\n# Configuration\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\n\n# SCENARIO_ID: 1c16faf1-ae73-429e-89f8-d24ab3dbaa91\ndef test_successfully_trigger_new_pipeline_run_via_api(page: Page):\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model PipelineRunRequest not in context\")\n\n# SCENARIO_ID: 8af3882c-6071-4e8e-9cf5-4279c8be9c3f\ndef test_monitor_pipeline_progress_via_sse_stream(page: Page):\n    # Dependency on run_id from Scenario 1c16faf1\n    pytest.skip(\"Payload model PipelineRunRequest not in context, cannot generate valid run_id\")\n\n# SCENARIO_ID: 98a10d9b-5e28-4855-b5ce-2acda365089c\ndef test_status_endpoint_returns_404_for_invalid_run_id(page: Page):\n    invalid_run_id = \"invalid-id-999\"\n    status_url = f\"{BASE_URL}/api/pipeline/status/{invalid_run_id}\"\n    \n    # Navigate to endpoint to inspect rendered JSON response\n    response = page.goto(status_url)\n    \n    # Assertions\n    assert response.status == 404\n    # Verify error message detail rendered in browser\n    error_msg = page.get_by_text(f\"Run '{invalid_run_id}' not found\", exact=False)\n    expect(error_msg).to_be_visible()\n\n# SCENARIO_ID: db74c615-cf64-4bd0-82aa-6cb648e6bb5a\ndef test_trigger_pipeline_run_with_malformed_request_body(page: Page):\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model PipelineRunRequest not in context\")\n\n# SCENARIO_ID: 49cad32d-1f07-4197-8732-69e972d9c00d\ndef test_delete_completed_pipeline_report(page: Page):\n    target_run_id = \"test-run-to-delete\"\n    report_url = f\"{BASE_URL}/api/reports/{target_run_id}\"\n    \n    # Step 1: Request deletion\n    delete_response = page.request.delete(report_url)\n    # We verify the outcome matches the expected 204 status\n    assert delete_response.status == 204\n    \n    # Step 2: Verify the resource is no longer accessible\n    verify_response = page.request.get(report_url)\n    expect(verify_response).not_to_be_ok()\n    assert verify_response.status == 404\n\n# SCENARIO_ID: 8b3b8f0c-3b6e-4f9f-8aff-462dfde965aa\ndef test_concurrent_pipeline_execution_handling(page: Page):\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model PipelineRunRequest not in context\")\n\n# SCENARIO_ID: 7558369e-8c71-459a-a8d3-5cabfac093d7\ndef test_report_endpoint_prevents_directory_traversal(page: Page):\n    traversal_path = \"../../etc/passwd\"\n    security_url = f\"{BASE_URL}/api/reports/{traversal_path}\"\n    \n    # Navigate to the malicious URL\n    response = page.goto(security_url)\n    \n    # Assertions for security boundary\n    assert response.status == 404\n    # Ensure sensitive info is not leaked and error is generic or localized\n    expect(page.get_by_text(\"Not Found\", exact=False)).to_be_visible()\n\n# SCENARIO_ID: b66f18ed-ea40-44ad-aa63-abf02164e5df\ndef test_retrieve_report_details_with_valid_run_id(page: Page):\n    valid_run_id = \"existing-run-id\"\n    report_url = f\"{BASE_URL}/api/reports/{valid_run_id}\"\n    \n    # Step 1: Navigate to report detail\n    page.goto(report_url)\n    \n    # Step 2: Verify JSON content is rendered in viewport\n    # We expect the unique run_id to be part of the JSON body text\n    run_id_locator = page.get_by_text(valid_run_id)\n    expect(run_id_locator).to_be_visible()\n    \n    # Verify another common field from PipelineRun schema (implied by snippet 3)\n    expect(page.get_by_text(\"stage\", exact=False)).to_be_visible()",
+      "scenario_ids": [
+        "1c16faf1-ae73-429e-89f8-d24ab3dbaa91",
+        "8af3882c-6071-4e8e-9cf5-4279c8be9c3f",
+        "98a10d9b-5e28-4855-b5ce-2acda365089c",
+        "db74c615-cf64-4bd0-82aa-6cb648e6bb5a",
+        "49cad32d-1f07-4197-8732-69e972d9c00d",
+        "8b3b8f0c-3b6e-4f9f-8aff-462dfde965aa",
+        "7558369e-8c71-459a-a8d3-5cabfac093d7",
+        "b66f18ed-ea40-44ad-aa63-abf02164e5df"
+      ],
+      "generated_at": "2026-03-14T23:13:52.510559"
+    }
+  ],
+  "execution_results": [
+    {
+      "test_title": "test_successfully_trigger_new_pipeline_run_via_api[chromium]",
+      "spec_file": "generated_tests/165761d7-ca4b-4f40-86cf-e4be7be68a6f/test_pipeline_reports.py",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_monitor_pipeline_progress_via_sse_stream[chromium]",
+      "spec_file": "generated_tests/165761d7-ca4b-4f40-86cf-e4be7be68a6f/test_pipeline_reports.py",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_status_endpoint_returns_404_for_invalid_run_id[chromium]",
+      "spec_file": "generated_tests/165761d7-ca4b-4f40-86cf-e4be7be68a6f/test_pipeline_reports.py",
+      "status": "passed",
+      "duration_ms": 59,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_trigger_pipeline_run_with_malformed_request_body[chromium]",
+      "spec_file": "generated_tests/165761d7-ca4b-4f40-86cf-e4be7be68a6f/test_pipeline_reports.py",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_delete_completed_pipeline_report[chromium]",
+      "spec_file": "generated_tests/165761d7-ca4b-4f40-86cf-e4be7be68a6f/test_pipeline_reports.py",
+      "status": "failed",
+      "duration_ms": 319,
+      "error_message": "AssertionError: assert 404 == 204\n +  where 404 = <APIResponse url='http://localhost:8000/api/reports/test-run-to-delete' status=404 status_text='Not Found'>.status",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_concurrent_pipeline_execution_handling[chromium]",
+      "spec_file": "generated_tests/165761d7-ca4b-4f40-86cf-e4be7be68a6f/test_pipeline_reports.py",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_report_endpoint_prevents_directory_traversal[chromium]",
+      "spec_file": "generated_tests/165761d7-ca4b-4f40-86cf-e4be7be68a6f/test_pipeline_reports.py",
+      "status": "passed",
+      "duration_ms": 16,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_retrieve_report_details_with_valid_run_id[chromium]",
+      "spec_file": "generated_tests/165761d7-ca4b-4f40-86cf-e4be7be68a6f/test_pipeline_reports.py",
+      "status": "failed",
+      "duration_ms": 5020,
+      "error_message": "AssertionError: Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for get_by_text(\"stage\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    }
+  ],
+  "heal_results": [],
+  "error": null
+}

@@ -1,0 +1,408 @@
+{
+  "run_id": "c388a1fb-7292-41bb-af5d-72fdeee38efd",
+  "label": "Test Pipeline",
+  "started_at": "2026-03-14T21:10:40.635737",
+  "completed_at": null,
+  "status": "failed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "f78f75a0-93f9-48f1-b660-d0905898035c",
+        "title": "Start pipeline run successfully via API",
+        "category": "happy_path",
+        "description": "Submit a valid PipelineRunRequest to POST /api/pipeline/run and receive run_id with queued status",
+        "preconditions": [
+          "Pipeline orchestrator is available",
+          "No existing runs blocking the queue"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": null
+          },
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "POST with valid PipelineRunRequest body",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response status 202 Accepted with JSON body containing run_id (UUID format) and status 'queued'",
+        "tags": [
+          "api",
+          "pipeline",
+          "smoke"
+        ]
+      },
+      {
+        "id": "56369d53-fa93-462a-bdf8-3295beeba6f3",
+        "title": "Pipeline run triggers SSE status stream",
+        "category": "happy_path",
+        "description": "After starting a run, connect to GET /api/pipeline/status/{run_id} and receive SSE events",
+        "preconditions": [
+          "Valid run_id from previous POST /run request"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run with valid body",
+            "assertion": null
+          },
+          {
+            "action": "extract_value",
+            "selector": null,
+            "value": "response.run_id",
+            "assertion": null
+          },
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/pipeline/status/{run_id} as SSE connection",
+            "assertion": null
+          }
+        ],
+        "expected_result": "SSE stream opens and emits PipelineStage events with progressing status until completion",
+        "tags": [
+          "api",
+          "sse",
+          "pipeline"
+        ]
+      },
+      {
+        "id": "9596031e-739d-428a-b1ed-ebe3c804cb18",
+        "title": "Complete pipeline run appears in reports list",
+        "category": "happy_path",
+        "description": "After a pipeline run completes, it should be retrievable via GET /api/reports",
+        "preconditions": [
+          "Pipeline run has completed successfully"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run with valid body",
+            "assertion": null
+          },
+          {
+            "action": "wait_for_sse_completion",
+            "selector": null,
+            "value": "/api/pipeline/status/{run_id}",
+            "assertion": null
+          },
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/reports",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Reports list contains the new run_id with correct status, label, and test/heal counts",
+        "tags": [
+          "api",
+          "pipeline",
+          "reports",
+          "e2e"
+        ]
+      },
+      {
+        "id": "3994dafe-1376-4474-8330-2ff0d964cfe1",
+        "title": "Start run with missing required fields in request body",
+        "category": "negative",
+        "description": "Submit POST /api/pipeline/run with incomplete PipelineRunRequest missing required fields",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run with empty JSON object {}",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response status 422 Unprocessable Entity with validation error details",
+        "tags": [
+          "api",
+          "validation",
+          "negative"
+        ]
+      },
+      {
+        "id": "f3b6e0e6-09bb-4f59-b432-64a0fb04e836",
+        "title": "Start run with malformed JSON body",
+        "category": "negative",
+        "description": "Submit POST /api/pipeline/run with syntactically invalid JSON payload",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run with body '{invalid json}'",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response status 400 Bad Request indicating JSON parse error",
+        "tags": [
+          "api",
+          "validation",
+          "negative"
+        ]
+      },
+      {
+        "id": "62f7d6e7-8a71-4f92-847d-72190070f6a8",
+        "title": "Start run with wrong content type header",
+        "category": "negative",
+        "description": "Submit POST /api/pipeline/run with text/plain instead of application/json",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run with Content-Type: text/plain",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response status 415 Unsupported Media Type or 422 validation error",
+        "tags": [
+          "api",
+          "validation",
+          "negative"
+        ]
+      },
+      {
+        "id": "44024b2d-9079-4f9d-9d62-79a6016e3681",
+        "title": "Concurrent pipeline runs generate unique run_ids",
+        "category": "edge_case",
+        "description": "Submit multiple POST /api/pipeline/run requests simultaneously and verify unique run_ids",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_concurrent_requests",
+            "selector": null,
+            "value": "5 parallel POST /api/pipeline/run requests",
+            "assertion": null
+          },
+          {
+            "action": "extract_values",
+            "selector": null,
+            "value": "all response.run_id values",
+            "assertion": null
+          }
+        ],
+        "expected_result": "All 5 responses return status 202 with unique UUID run_ids, no duplicates",
+        "tags": [
+          "api",
+          "concurrency",
+          "edge_case"
+        ]
+      },
+      {
+        "id": "34d7f35f-3f37-47f3-a6f1-33eb133ad3ae",
+        "title": "SSE connection for non-existent run_id returns error",
+        "category": "negative",
+        "description": "Attempt to connect to SSE stream with a run_id that was never created",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/pipeline/status/non-existent-uuid-1234",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response status 404 Not Found or SSE stream with error event",
+        "tags": [
+          "api",
+          "sse",
+          "negative"
+        ]
+      },
+      {
+        "id": "8181ee4d-019c-4954-8f92-69de732cc11b",
+        "title": "SSE connection timeout handling",
+        "category": "edge_case",
+        "description": "Verify SSE connection handles timeout gracefully when pipeline stalls",
+        "preconditions": [
+          "Pipeline orchestrator configured with timeout"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run with long-running configuration",
+            "assertion": null
+          },
+          {
+            "action": "connect_sse",
+            "selector": null,
+            "value": "GET /api/pipeline/status/{run_id}",
+            "assertion": null
+          },
+          {
+            "action": "wait",
+            "selector": null,
+            "value": "timeout duration + buffer",
+            "assertion": null
+          }
+        ],
+        "expected_result": "SSE stream emits timeout error event or closes gracefully without hanging indefinitely",
+        "tags": [
+          "api",
+          "sse",
+          "edge_case",
+          "timeout"
+        ]
+      },
+      {
+        "id": "13dc189b-bf3f-45d4-88ae-5f7143c08b2a",
+        "title": "Unauthorized pipeline run attempt",
+        "category": "security",
+        "description": "Attempt to start a pipeline run without proper authentication credentials",
+        "preconditions": [
+          "API requires authentication"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run without Authorization header",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response status 401 Unauthorized with appropriate error message",
+        "tags": [
+          "api",
+          "security",
+          "authentication"
+        ]
+      },
+      {
+        "id": "f726dfdd-4eab-47e2-8c3c-b6b5e1bb3ef6",
+        "title": "IDOR attempt to access another run's status",
+        "category": "security",
+        "description": "Try to access SSE stream or report for run_id belonging to another user/tenant",
+        "preconditions": [
+          "Multi-tenant system with run isolation"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run as User A, capture run_id",
+            "assertion": null
+          },
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/pipeline/status/{run_id} as User B",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response status 403 Forbidden or 404 Not Found, no status details leaked",
+        "tags": [
+          "api",
+          "security",
+          "idor"
+        ]
+      },
+      {
+        "id": "d9d7e50b-d4f5-43b3-b465-f5de76cfc869",
+        "title": "Injection attempt in PipelineRunRequest fields",
+        "category": "security",
+        "description": "Submit POST /api/pipeline/run with SQL injection and XSS payloads in request fields",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run with label: \"'; DROP TABLE runs; --\"",
+            "assertion": null
+          },
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run with label: \"<script>alert('xss')</script>\"",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Request processed safely, malicious input is escaped/rejected, no database errors exposed",
+        "tags": [
+          "api",
+          "security",
+          "injection"
+        ]
+      },
+      {
+        "id": "535f6310-7315-45a7-82a0-9def422358c5",
+        "title": "Empty reports directory returns empty list",
+        "category": "edge_case",
+        "description": "GET /api/reports returns empty array when no pipeline runs have completed",
+        "preconditions": [
+          "REPORTS_DIR is empty or does not exist"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/reports",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response status 200 with empty JSON array []",
+        "tags": [
+          "api",
+          "reports",
+          "edge_case"
+        ]
+      },
+      {
+        "id": "489e0f8a-6a96-4ff6-a537-905f3b5b942f",
+        "title": "Invalid UUID format in run_id path parameter",
+        "category": "negative",
+        "description": "Request SSE status with malformed run_id that is not a valid UUID",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/pipeline/status/not-a-uuid",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response status 400 Bad Request or 422 with path validation error",
+        "tags": [
+          "api",
+          "validation",
+          "negative"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T21:11:31.680296",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [],
+  "execution_results": [],
+  "heal_results": [],
+  "error": "Code generation failed after all retries.\nDetail: Ollama generate failed: "
+}

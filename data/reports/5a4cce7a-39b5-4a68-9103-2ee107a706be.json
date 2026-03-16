@@ -1,0 +1,365 @@
+{
+  "run_id": "5a4cce7a-39b5-4a68-9103-2ee107a706be",
+  "label": "Pipeline",
+  "started_at": "2026-03-14T22:33:20.400180",
+  "completed_at": "2026-03-14T22:34:03.982925",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "a304f9cc-56bf-416b-8982-d825a802164c",
+        "title": "Trigger new pipeline run via API",
+        "category": "happy_path",
+        "description": "Verify that a POST request to the pipeline run endpoint initiates a background task and returns a valid run ID.",
+        "preconditions": [
+          "API service is running and accessible"
+        ],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "response.status == 202"
+          },
+          {
+            "action": "validate_json",
+            "selector": null,
+            "value": "{ 'run_id': str, 'status': 'queued' }",
+            "assertion": "body['run_id'] is not None"
+          }
+        ],
+        "expected_result": "A 202 Accepted status is returned with a generated UUID and queued status.",
+        "tags": [
+          "api",
+          "pipeline"
+        ]
+      },
+      {
+        "id": "a39fdf0c-f87e-40ac-97f9-01e030d3b348",
+        "title": "Retrieve list of completed reports",
+        "category": "happy_path",
+        "description": "Verify that the reports endpoint returns a list of all existing pipeline run summaries.",
+        "preconditions": [
+          "At least one pipeline run has been completed and stored on disk"
+        ],
+        "steps": [
+          {
+            "action": "get",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "response.status == 200"
+          },
+          {
+            "action": "count",
+            "selector": null,
+            "value": null,
+            "assertion": "len(response.json()) >= 1"
+          }
+        ],
+        "expected_result": "A JSON array of report summaries containing run_id, label, and status.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      },
+      {
+        "id": "ad3cac14-ed26-4039-80f9-df807b0dc5a2",
+        "title": "Navigate to specific report details via UI",
+        "category": "happy_path",
+        "description": "Verify that clicking a report ID in the list navigates to the detailed view.",
+        "preconditions": [
+          "Reports list is populated"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/reports",
+            "assertion": null
+          },
+          {
+            "action": "click",
+            "selector": "get_by_role('link').first",
+            "value": null,
+            "assertion": "page.url.should_contain('/reports/')"
+          }
+        ],
+        "expected_result": "The UI displays the full execution report details for the selected run ID.",
+        "tags": [
+          "ui",
+          "reports"
+        ]
+      },
+      {
+        "id": "85b03e1c-6f31-4fad-98d4-2eda35a627f5",
+        "title": "Submit pipeline run with invalid payload",
+        "category": "negative",
+        "description": "Verify that the API returns an error when required fields in PipelineRunRequest are missing.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "response.status == 422"
+          }
+        ],
+        "expected_result": "Server returns 422 Unprocessable Entity due to validation failure.",
+        "tags": [
+          "api",
+          "validation"
+        ]
+      },
+      {
+        "id": "7afa0c79-8caa-40da-82f2-f9f07623f6b1",
+        "title": "Fetch non-existent report detail",
+        "category": "negative",
+        "description": "Verify the system handles requests for report IDs that do not exist on disk.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "get",
+            "selector": null,
+            "value": "/api/reports/invalid-uuid-123",
+            "assertion": "response.status == 404"
+          }
+        ],
+        "expected_result": "API returns a 404 Not Found error.",
+        "tags": [
+          "api",
+          "error-handling"
+        ]
+      },
+      {
+        "id": "e5ed7e70-cd75-42a5-9035-1fe2e0c46502",
+        "title": "Handle empty reports directory",
+        "category": "edge_case",
+        "description": "Verify that the reports list endpoint returns an empty array when no reports exist.",
+        "preconditions": [
+          "Ensure the REPORTS_DIR is empty"
+        ],
+        "steps": [
+          {
+            "action": "get",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "response.status == 200"
+          },
+          {
+            "action": "validate_json",
+            "selector": null,
+            "value": "[]",
+            "assertion": "response.json() == []"
+          }
+        ],
+        "expected_result": "API returns an empty list gracefully without error.",
+        "tags": [
+          "api",
+          "edge-case"
+        ]
+      },
+      {
+        "id": "2de48ecf-7e24-458f-b14c-6c30d8f999d2",
+        "title": "Delete report via API",
+        "category": "happy_path",
+        "description": "Verify that a DELETE request removes the report file from the server.",
+        "preconditions": [
+          "A valid report exists"
+        ],
+        "steps": [
+          {
+            "action": "delete",
+            "selector": null,
+            "value": "/api/reports/{run_id}",
+            "assertion": "response.status == 200"
+          },
+          {
+            "action": "get",
+            "selector": null,
+            "value": "/api/reports/{run_id}",
+            "assertion": "response.status == 404"
+          }
+        ],
+        "expected_result": "The report is successfully deleted and no longer retrievable.",
+        "tags": [
+          "api",
+          "cleanup"
+        ]
+      },
+      {
+        "id": "c831d626-200a-4c95-9617-9e81269f9899",
+        "title": "Prevent Path Traversal in report retrieval",
+        "category": "security",
+        "description": "Ensure that the run_id parameter cannot be used to access files outside the reports directory.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "get",
+            "selector": null,
+            "value": "/api/reports/../../etc/passwd",
+            "assertion": "response.status != 200"
+          }
+        ],
+        "expected_result": "The API rejects the request or returns 404/422, preventing file system traversal.",
+        "tags": [
+          "security",
+          "owasp"
+        ]
+      },
+      {
+        "id": "3028f922-515f-4040-994b-ab99666c0701",
+        "title": "Validate concurrent pipeline triggers",
+        "category": "edge_case",
+        "description": "Verify that multiple rapid POST requests to /run generate unique run IDs and do not collide.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "post_concurrent",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "all responses status == 202"
+          }
+        ],
+        "expected_result": "Unique UUIDs are generated for every concurrent request.",
+        "tags": [
+          "concurrency",
+          "api"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T22:33:35.232548",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_pipeline_reports.py",
+      "content": "import os\nimport re\nimport pytest\nfrom playwright.sync_api import Page, expect\n\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\nREPORTS_API_PATH = \"/api/reports\"\nPIPELINE_RUN_API_PATH = \"/api/pipeline/run\"\n\n# SCENARIO_ID: a304f9cc-56bf-416b-8982-d825a802164c\ndef test_trigger_new_pipeline_run_via_api(page: Page):\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model PipelineRunRequest not in context\")\n\n# SCENARIO_ID: a39fdf0c-f87e-40ac-97f9-01e030d3b348\ndef test_retrieve_list_of_completed_reports(page: Page):\n    response = page.request.get(f\"{BASE_URL}{REPORTS_API_PATH}\")\n    expect(response).to_be_ok()\n    \n    reports = response.json()\n    assert isinstance(reports, list)\n    assert len(reports) >= 1, \"Expected at least one completed report summary\"\n    \n    first_report = reports[0]\n    assert \"run_id\" in first_report\n    assert \"status\" in first_report\n\n# SCENARIO_ID: ad3cac14-ed26-4039-80f9-df807b0dc5a2\ndef test_navigate_to_specific_report_details_via_ui(page: Page):\n    page.goto(f\"{BASE_URL}/reports\")\n    \n    # Use modern locator to find the first report link\n    report_link = page.get_by_role(\"link\").first\n    expect(report_link).to_be_visible()\n    \n    report_link.click()\n    \n    # Verify navigation to a detail URL pattern\n    expect(page).to_have_url(re.compile(r\".*/reports/[a-zA-Z0-9-]+\"))\n\n# SCENARIO_ID: 85b03e1c-6f31-4fad-98d4-2eda35a627f5\ndef test_submit_pipeline_run_with_invalid_payload(page: Page):\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model PipelineRunRequest not in context\")\n\n# SCENARIO_ID: 7afa0c79-8caa-40da-82f2-f9f07623f6b1\ndef test_fetch_non_existent_report_detail(page: Page):\n    invalid_uuid = \"invalid-uuid-123\"\n    response = page.request.get(f\"{BASE_URL}{REPORTS_API_PATH}/{invalid_uuid}\")\n    \n    assert response.status == 404\n\n# SCENARIO_ID: e5ed7e70-cd75-42a5-9035-1fe2e0c46502\ndef test_handle_empty_reports_directory(page: Page):\n    # This test assumes a clean environment where no reports exist\n    response = page.request.get(f\"{BASE_URL}{REPORTS_API_PATH}\")\n    expect(response).to_be_ok()\n    \n    body = response.json()\n    assert body == [], f\"Expected empty list, but got {body}\"\n\n# SCENARIO_ID: 2de48ecf-7e24-458f-b14c-6c30d8f999d2\ndef test_delete_report_via_api(page: Page):\n    # 1. Retrieve list to find a valid run_id\n    list_res = page.request.get(f\"{BASE_URL}{REPORTS_API_PATH}\")\n    reports = list_res.json()\n    if not reports:\n        pytest.skip(\"No reports available to perform deletion test\")\n        \n    target_run_id = reports[0][\"run_id\"]\n    report_endpoint = f\"{BASE_URL}{REPORTS_API_PATH}/{target_run_id}\"\n    \n    # 2. Perform deletion\n    delete_res = page.request.delete(report_endpoint)\n    expect(delete_res).to_be_ok()\n    \n    # 3. Verify report is gone\n    verify_res = page.request.get(report_endpoint)\n    assert verify_res.status == 404\n\n# SCENARIO_ID: c831d626-200a-4c95-9617-9e81269f9899\ndef test_prevent_path_traversal_in_report_retrieval(page: Page):\n    traversal_path = \"../../etc/passwd\"\n    response = page.request.get(f\"{BASE_URL}{REPORTS_API_PATH}/{traversal_path}\")\n    \n    # Ensure the system does not return a 200 for sensitive system files\n    assert response.status != 200\n    assert response.status in [404, 422, 400]\n\n# SCENARIO_ID: 3028f922-515f-4040-994b-ab99666c0701\ndef test_validate_concurrent_pipeline_triggers(page: Page):\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model PipelineRunRequest not in context\")\n",
+      "scenario_ids": [
+        "a304f9cc-56bf-416b-8982-d825a802164c",
+        "a39fdf0c-f87e-40ac-97f9-01e030d3b348",
+        "ad3cac14-ed26-4039-80f9-df807b0dc5a2",
+        "85b03e1c-6f31-4fad-98d4-2eda35a627f5",
+        "7afa0c79-8caa-40da-82f2-f9f07623f6b1",
+        "e5ed7e70-cd75-42a5-9035-1fe2e0c46502",
+        "2de48ecf-7e24-458f-b14c-6c30d8f999d2",
+        "c831d626-200a-4c95-9617-9e81269f9899",
+        "3028f922-515f-4040-994b-ab99666c0701"
+      ],
+      "generated_at": "2026-03-14T22:33:56.866396"
+    }
+  ],
+  "execution_results": [
+    {
+      "test_title": "test_trigger_new_pipeline_run_via_api[chromium]",
+      "spec_file": "generated_tests/5a4cce7a-39b5-4a68-9103-2ee107a706be/test_pipeline_reports.py",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_retrieve_list_of_completed_reports[chromium]",
+      "spec_file": "generated_tests/5a4cce7a-39b5-4a68-9103-2ee107a706be/test_pipeline_reports.py",
+      "status": "passed",
+      "duration_ms": 335,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_navigate_to_specific_report_details_via_ui[chromium]",
+      "spec_file": "generated_tests/5a4cce7a-39b5-4a68-9103-2ee107a706be/test_pipeline_reports.py",
+      "status": "failed",
+      "duration_ms": 5024,
+      "error_message": "AssertionError: Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for get_by_role(\"link\").first",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_submit_pipeline_run_with_invalid_payload[chromium]",
+      "spec_file": "generated_tests/5a4cce7a-39b5-4a68-9103-2ee107a706be/test_pipeline_reports.py",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_fetch_non_existent_report_detail[chromium]",
+      "spec_file": "generated_tests/5a4cce7a-39b5-4a68-9103-2ee107a706be/test_pipeline_reports.py",
+      "status": "passed",
+      "duration_ms": 303,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_handle_empty_reports_directory[chromium]",
+      "spec_file": "generated_tests/5a4cce7a-39b5-4a68-9103-2ee107a706be/test_pipeline_reports.py",
+      "status": "failed",
+      "duration_ms": 5,
+      "error_message": "AssertionError: Expected empty list, but got [{'run_id': 'ec100ed0-b90e-49d0-a28f-f0e387d57c8b', 'label': 'Pipeline tests', 'status': 'completed', 'started_at': '2026-03-14T22:31:34.877432', 'completed_at': '2026-03-14T22:32:25.484076', 'test_count': 0, 'heal_count': 0}, {'run_id': 'c8e0df1b-7095-4512-b3a8-805a0a24403a', 'label': 'Pipeline test api', 'status': 'completed', 'started_at': '2026-03-14T22:20:40.719632', 'completed_at': '2026-03-14T22:21:22.490417', 'test_count': 8, 'heal_count': 0}, {'run_id': 'b6533c58-3619-4787-abd6-061cfb8ffb98', 'label': 'Pipeline tests', 'status': 'completed', 'started_at': '2026-03-14T22:01:39.805468', 'completed_at': '2026-03-14T22:02:38.932411', 'test_count': 10, 'heal_count': 0}, {'run_id': '07e2cbe9-82ca-44f7-a818-183ba0872c5e', 'label': 'Test Pipeline again', 'status': 'completed', 'started_at': '2026-03-14T21:35:20.818877', 'completed_at': '2026-03-14T21:36:08.515314', 'test_count': 9, 'heal_count': 0}, {'run_id': '45e1c899-9ba3-4671-b529-3263ab1d3abb', 'label': 'Test Pipeline', 'status': 'completed', 'started_at': '2026-03-14T21:26:27.321751', 'completed_at': '2026-03-14T21:31:41.651720', 'test_count': 0, 'heal_count': 0}, {'run_id': '99f3f8cb-671d-4a7b-82e5-ff7e4ade6723', 'label': 'Pipeline test - take 2', 'status': 'failed', 'started_at': '2026-03-14T21:23:40.695486', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': '4f15a87a-0d03-493d-ab00-950b17c71a8a', 'label': 'Pipeline test - take 2', 'status': 'failed', 'started_at': '2026-03-14T21:16:31.795495', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': 'c388a1fb-7292-41bb-af5d-72fdeee38efd', 'label': 'Test Pipeline', 'status': 'failed', 'started_at': '2026-03-14T21:10:40.635737', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': '96fe4ffc-f1f9-4ca2-ac03-5abab9230304', 'label': 'Health test', 'status': 'completed', 'started_at': '2026-03-14T21:03:36.337238', 'completed_at': '2026-03-14T21:05:31.897779', 'test_count': 10, 'heal_count': 0}, {'run_id': 'd48ac0f1-6326-4ef8-b39e-94af9c04e98e', 'label': 'Healthier test', 'status': 'failed', 'started_at': '2026-03-14T20:58:23.035712', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': '46e34c4e-97ba-4802-b60e-e5056affd85c', 'label': 'Health', 'status': 'completed', 'started_at': '2026-03-14T20:30:24.897466', 'completed_at': '2026-03-14T20:31:58.111135', 'test_count': 10, 'heal_count': 0}, {'run_id': '9ed53b94-8f45-4dc1-9569-76f040f100d3', 'label': 'Health test - yet again', 'status': 'completed', 'started_at': '2026-03-14T20:18:30.058194', 'completed_at': '2026-03-14T20:19:33.084944', 'test_count': 1, 'heal_count': 0}, {'run_id': 'ffbeb59f-43b2-4569-9285-32e57435c205', 'label': 'Health', 'status': 'completed', 'started_at': '2026-03-14T20:02:49.375310', 'completed_at': '2026-03-14T20:04:19.359216', 'test_count': 0, 'heal_count': 0}, {'run_id': '64e002e7-0ec1-463b-86de-d41ad64b02c3', 'label': 'Health - Once more', 'status': 'failed', 'started_at': '2026-03-14T19:46:33.398067', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': 'b23108e2-3f5a-40d2-be4f-6d7e29d041a9', 'label': 'Health', 'status': 'failed', 'started_at': '2026-03-14T19:34:58.692531', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': '25531991-122e-4452-bee1-090e50ae8eda', 'label': 'Health', 'status': 'failed', 'started_at': '2026-03-14T19:34:14.222920', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': '94ab994e-2c43-4758-b489-ba1e348a676e', 'label': 'health', 'status': 'failed', 'started_at': '2026-03-14T14:32:02.677879', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': '57943de1-406e-4fab-af9d-0092dd121e8e', 'label': 'Health features', 'status': 'failed', 'started_at': '2026-03-14T14:22:08.391692', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': '57bf6e38-046e-4f4b-98a0-98dec42f9140', 'label': 'health feature', 'status': 'failed', 'started_at': '2026-03-14T14:17:48.001015', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': '10b0a7f2-de36-482f-bac1-dcff3520a638', 'label': 'health feature', 'status': 'failed', 'started_at': '2026-03-14T14:15:30.362130', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': '68daf33d-b109-4ed3-aba4-5d9e4e55a3a9', 'label': 'Health feature', 'status': 'failed', 'started_at': '2026-03-14T14:14:58.303787', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': 'acf5c31f-9b48-4896-b5fe-0a607af3f98f', 'label': None, 'status': 'failed', 'started_at': '2026-03-13T19:03:02.706981', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': '6df7852b-897e-42d8-97cd-816f751054d7', 'label': None, 'status': 'failed', 'started_at': '2026-03-13T19:02:17.287758', 'completed_at': None, 'test_count': 0, 'heal_count': 0}, {'run_id': 'ba8a264f-1dd7-4200-824b-925464a62341', 'label': None, 'status': 'failed', 'started_at': '2026-03-13T17:56:51.850538', 'completed_at': None, 'test_count': 0, 'heal_count': 0}]\nassert [{'completed_...3', ...}, ...] == []\n  \n  Left contains 24 more items, first extra item: {'completed_at': '2026-03-14T22:32:25.484076', 'heal_count': 0, 'label': 'Pipeline tests', 'run_id': 'ec100ed0-b90e-49d0-a28f-f0e387d57c8b', ...}\n  \n  Full diff:\n  - []\n  + [\n  +     {...\n  \n  ...Full output truncated (216 lines hidden), use '-vv' to show",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_delete_report_via_api[chromium]",
+      "spec_file": "generated_tests/5a4cce7a-39b5-4a68-9103-2ee107a706be/test_pipeline_reports.py",
+      "status": "passed",
+      "duration_ms": 7,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_prevent_path_traversal_in_report_retrieval[chromium]",
+      "spec_file": "generated_tests/5a4cce7a-39b5-4a68-9103-2ee107a706be/test_pipeline_reports.py",
+      "status": "passed",
+      "duration_ms": 1,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_validate_concurrent_pipeline_triggers[chromium]",
+      "spec_file": "generated_tests/5a4cce7a-39b5-4a68-9103-2ee107a706be/test_pipeline_reports.py",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    }
+  ],
+  "heal_results": [],
+  "error": null
+}

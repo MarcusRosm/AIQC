@@ -1,0 +1,267 @@
+{
+  "run_id": "4002d0ca-fe18-49f5-9165-44ff95969f6f",
+  "label": "Pipeline test",
+  "started_at": "2026-03-15T13:26:59.394032",
+  "completed_at": null,
+  "status": "failed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "74e15b2e-183f-40d8-ab87-3cb430c0755b",
+        "title": "Successfully trigger a new pipeline run via API",
+        "category": "happy_path",
+        "description": "Verify that a valid POST request to /api/pipeline/run returns a 202 status and a valid run_id.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Response status should be 202 and contain a UUID 'run_id'"
+          }
+        ],
+        "expected_result": "Pipeline run is initialized in the background and run_id is returned.",
+        "tags": [
+          "api",
+          "pipeline",
+          "smoke"
+        ]
+      },
+      {
+        "id": "06d67086-7864-4b7b-9192-3be4eb84ed38",
+        "title": "Trigger pipeline run from UI and verify background task start",
+        "category": "happy_path",
+        "description": "Verify the UI correctly submits the run label and diff text to the /run endpoint.",
+        "preconditions": [
+          "User is on the pipeline execution page"
+        ],
+        "steps": [
+          {
+            "action": "fill",
+            "selector": "get_by_label('Run Label')",
+            "value": "Test Run Alpha",
+            "assertion": null
+          },
+          {
+            "action": "fill",
+            "selector": "get_by_placeholder('Paste diff here')",
+            "value": "diff --git a/file.py b/file.py\n+ new_line",
+            "assertion": null
+          },
+          {
+            "action": "click",
+            "selector": "get_by_role('button', name='Run Pipeline')",
+            "value": null,
+            "assertion": "UI should display a success message or redirect to status page"
+          }
+        ],
+        "expected_result": "The application triggers the background task and provides feedback to the user.",
+        "tags": [
+          "ui",
+          "pipeline"
+        ]
+      },
+      {
+        "id": "f3deed2c-3450-4597-a9e8-53456ef88cad",
+        "title": "Verify SSE status stream for an active pipeline run",
+        "category": "happy_path",
+        "description": "Verify that GET /api/pipeline/status/{run_id} streams the correct lifecycle events (STARTED, DIFF_ANALYZED).",
+        "preconditions": [
+          "A pipeline run has been initiated and run_id is known"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/pipeline/status/{run_id}",
+            "assertion": "Stream should contain event: 'STARTED' and 'DIFF_ANALYZED'"
+          }
+        ],
+        "expected_result": "The client receives real-time updates as the pipeline orchestrator processes the diff.",
+        "tags": [
+          "api",
+          "sse",
+          "pipeline"
+        ]
+      },
+      {
+        "id": "4584cb8f-2299-4368-8c16-931953e62cfe",
+        "title": "List completed pipeline reports",
+        "category": "happy_path",
+        "description": "Verify that /api/reports returns a list of completed runs sorted by modification time.",
+        "preconditions": [
+          "At least one pipeline run has completed and saved a JSON report"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "Response should be a list containing the recent run_id"
+          }
+        ],
+        "expected_result": "The API returns a JSON array of report summaries.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      },
+      {
+        "id": "bf86e0b5-02de-4be8-9500-4cc3f2c36251",
+        "title": "Handle missing run_label in pipeline request",
+        "category": "negative",
+        "description": "Verify that the API returns a 422 error when the run_label is missing from the request body.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run (body: {'diff_text': 'some diff'})",
+            "assertion": "Response status should be 422 Unprocessable Entity"
+          }
+        ],
+        "expected_result": "Request is rejected due to missing mandatory schema fields.",
+        "tags": [
+          "api",
+          "validation"
+        ]
+      },
+      {
+        "id": "946868b9-10da-41de-874d-ec57b60b6b89",
+        "title": "Access status for non-existent run_id",
+        "category": "negative",
+        "description": "Verify that requesting SSE status for a random UUID returns an empty stream or error.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/pipeline/status/00000000-0000-0000-0000-000000000000",
+            "assertion": "Response should not stream valid pipeline events"
+          }
+        ],
+        "expected_result": "The system does not leak data or crash for invalid run IDs.",
+        "tags": [
+          "api",
+          "error_handling"
+        ]
+      },
+      {
+        "id": "3c17ff8f-e7a9-4ec9-b684-789835d708a3",
+        "title": "Handle empty report directory",
+        "category": "edge_case",
+        "description": "Verify that /api/reports returns an empty list when no report files exist.",
+        "preconditions": [
+          "REPORTS_DIR is empty"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "Response should be an empty list []"
+          }
+        ],
+        "expected_result": "API handles the missing directory or empty state gracefully without 500 errors.",
+        "tags": [
+          "api",
+          "edge_case"
+        ]
+      },
+      {
+        "id": "8283ce3f-6815-44f4-ba8b-9ad918c8dafb",
+        "title": "Pipeline run with extremely large diff text",
+        "category": "edge_case",
+        "description": "Verify system stability when processing a multi-megabyte diff file.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run (body: {'run_label': 'Large Diff', 'diff_text': '...' * 1000000})",
+            "assertion": "System should accept the request or return a 413 Payload Too Large"
+          }
+        ],
+        "expected_result": "The system processes the request within resource limits or rejects it cleanly.",
+        "tags": [
+          "api",
+          "performance"
+        ]
+      },
+      {
+        "id": "21999df2-c9e8-4a20-b6a1-500f55598703",
+        "title": "XSS injection in run_label field",
+        "category": "security",
+        "description": "Check if a malicious script in the run label is sanitized when viewed in reports.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run (body: {'run_label': '<script>alert(1)</script>', 'diff_text': 'diff'})",
+            "assertion": "202 Accepted"
+          },
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "UI should render script as plain text, not execute it"
+          }
+        ],
+        "expected_result": "The application prevents stored XSS by sanitizing input or escaping output.",
+        "tags": [
+          "security",
+          "owasp"
+        ]
+      },
+      {
+        "id": "7f042326-d512-49a4-b8e8-57b8a1818ba8",
+        "title": "Validate UUID format for run_id",
+        "category": "security",
+        "description": "Verify that the run_id generated is a valid version 4 UUID as per orchestrator logic.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "run_id matches UUID v4 regex"
+          }
+        ],
+        "expected_result": "Generated IDs follow secure, unpredictable patterns.",
+        "tags": [
+          "security",
+          "api"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-15T13:27:19.003353",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [],
+  "execution_results": [],
+  "heal_results": [],
+  "error": "Invalid format specifier ' 'World'' for object of type 'str'"
+}

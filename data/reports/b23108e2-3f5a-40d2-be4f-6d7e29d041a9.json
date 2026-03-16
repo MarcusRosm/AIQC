@@ -1,0 +1,434 @@
+{
+  "run_id": "b23108e2-3f5a-40d2-be4f-6d7e29d041a9",
+  "label": "Health",
+  "started_at": "2026-03-14T19:34:58.692531",
+  "completed_at": null,
+  "status": "failed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/health.py",
+        "change_type": "modified",
+        "additions": 8,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/health.py b/app/api/routes/health.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/health.py\n+++ b/app/api/routes/health.py\n@@ -7,12 +7,16 @@\n from __future__ import annotations\n \n import httpx\n+import time\n+from datetime import datetime\n \n from fastapi import APIRouter\n \n from app.core.config import get_settings\n from app.core.logging import get_logger\n from app.rag.vector_store import ChromaStore\n+\n+START_TIME = time.time()\n \n logger = get_logger(__name__)\n router = APIRouter(prefix=\"/api/health\", tags=[\"health\"])\n@@ -47,11 +51,14 @@\n         logger.warning(\"ChromaDB health check failed: %s\", exc)\n \n     status = \"ok\" if (ollama_ok and chroma_ok) else \"degraded\"\n+    uptime_seconds = int(time.time() - START_TIME)\n+    \n     return {\n         \"status\": status,\n         \"ollama\": ollama_ok,\n         \"chromadb\": chroma_ok,\n         \"llm_model\": settings.OLLAMA_LLM_MODEL,\n         \"embed_model\": settings.OLLAMA_EMBED_MODEL,\n+        \"uptime\": f\"{uptime_seconds}s\",\n+        \"server_time\": datetime.now().isoformat(),\n     }"
+      }
+    ],
+    "summary": "Changed 1 file(s): health.py",
+    "total_additions": 8,
+    "total_deletions": 0,
+    "affected_routes": [],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "c8a33bbc-bde7-4e59-a14c-d37057e20c93",
+        "title": "Health check returns ok when all dependencies are healthy",
+        "category": "happy_path",
+        "description": "Verify that GET /api/health returns status 'ok' with all dependency flags true when both Ollama and ChromaDB are reachable and functioning correctly.",
+        "preconditions": [
+          "Ollama service is running and accessible at configured OLLAMA_BASE_URL",
+          "ChromaDB is initialized and collection count operation succeeds"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_status_code",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "{\"status\": \"ok\", \"ollama\": true, \"chromadb\": true}",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_contains",
+            "selector": null,
+            "value": "llm_model field matching settings.OLLAMA_LLM_MODEL",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response contains status 'ok', ollama=true, chromadb=true, and the configured llm_model name.",
+        "tags": [
+          "api",
+          "health",
+          "readiness"
+        ]
+      },
+      {
+        "id": "121aefaf-62ae-49fc-a7cf-502ad4ade8ed",
+        "title": "Health check returns degraded status when Ollama is unreachable",
+        "category": "negative",
+        "description": "Verify that GET /api/health returns status 'degraded' with ollama=false when the Ollama HTTP API is not accessible or returns non-200 status.",
+        "preconditions": [
+          "Ollama service is stopped or OLLAMA_BASE_URL is misconfigured",
+          "ChromaDB is functioning correctly"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_status_code",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "{\"status\": \"degraded\", \"ollama\": false, \"chromadb\": true}",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response status is 'degraded', ollama=false, chromadb=true. Warning is logged for failed Ollama health check.",
+        "tags": [
+          "api",
+          "health",
+          "degraded",
+          "ollama"
+        ]
+      },
+      {
+        "id": "40f55144-2569-4aa2-a456-682839d8eab7",
+        "title": "Health check returns degraded status when ChromaDB fails initialization",
+        "category": "negative",
+        "description": "Verify that GET /api/health returns status 'degraded' with chromadb=false when ChromaStore fails to initialize or count() throws an exception.",
+        "preconditions": [
+          "Ollama service is running correctly",
+          "ChromaDB is unavailable or ChromaStore() constructor throws exception"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_status_code",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "{\"status\": \"degraded\", \"ollama\": true, \"chromadb\": false}",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response status is 'degraded', ollama=true, chromadb=false. Warning is logged for failed ChromaDB health check.",
+        "tags": [
+          "api",
+          "health",
+          "degraded",
+          "chromadb"
+        ]
+      },
+      {
+        "id": "e329141a-7c43-45b8-a8a0-7ecae320f12a",
+        "title": "Health check handles both dependencies failing simultaneously",
+        "category": "edge_case",
+        "description": "Verify that GET /api/health correctly handles the scenario where both Ollama and ChromaDB are unavailable and returns degraded status.",
+        "preconditions": [
+          "Ollama service is stopped or unreachable",
+          "ChromaDB is unavailable"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_status_code",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "{\"status\": \"degraded\", \"ollama\": false, \"chromadb\": false}",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response status is 'degraded', ollama=false, chromadb=false. Both warnings are logged for failed dependency checks.",
+        "tags": [
+          "api",
+          "health",
+          "degraded",
+          "edge_case"
+        ]
+      },
+      {
+        "id": "5256fc97-0693-46aa-b5e5-b23c9afce6dc",
+        "title": "Health check handles Ollama timeout correctly",
+        "category": "edge_case",
+        "description": "Verify that GET /api/health handles slow Ollama responses up to the 3 second timeout and returns degraded status if timeout is exceeded.",
+        "preconditions": [
+          "Ollama service responds slowly (>3 seconds) or times out",
+          "ChromaDB is functioning correctly"
+        ],
+        "steps": [
+          {
+            "action": "configure_mock",
+            "selector": null,
+            "value": "Ollama endpoint delay > 3000ms",
+            "assertion": null
+          },
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_status_code",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "{\"ollama\": false}",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_time",
+            "selector": null,
+            "value": "< 5000ms total response time",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response returns within reasonable time with ollama=false due to timeout exception being caught.",
+        "tags": [
+          "api",
+          "health",
+          "timeout",
+          "edge_case"
+        ]
+      },
+      {
+        "id": "f0de2f0c-eb57-4ea0-92be-593b39671534",
+        "title": "Health endpoint is accessible without authentication",
+        "category": "security",
+        "description": "Verify that /api/health endpoint is intentionally public and accessible without any authentication headers or tokens, as expected for a readiness probe.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_request_without_auth",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_status_code",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Health endpoint returns 200 without requiring authentication, as expected for Kubernetes readiness probes.",
+        "tags": [
+          "api",
+          "health",
+          "security",
+          "public_endpoint"
+        ]
+      },
+      {
+        "id": "599d8ec7-aee5-4b84-adfe-282219ff4836",
+        "title": "Health endpoint does not expose sensitive configuration data",
+        "category": "security",
+        "description": "Verify that GET /api/health response only exposes safe configuration values (llm_model name) and does not leak sensitive settings like database passwords or API keys.",
+        "preconditions": [
+          "Both dependencies are healthy"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_status_code",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_excludes",
+            "selector": null,
+            "value": "password, secret, key, token, credential",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_fields",
+            "selector": null,
+            "value": "Only status, ollama, chromadb, llm_model fields present",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Response contains only non-sensitive fields: status, ollama, chromadb, llm_model. No sensitive configuration values are exposed.",
+        "tags": [
+          "api",
+          "health",
+          "security",
+          "data_exposure"
+        ]
+      },
+      {
+        "id": "9aefbe34-799f-427c-8fe8-83f368728837",
+        "title": "Health check handles unexpected HTTP methods gracefully",
+        "category": "negative",
+        "description": "Verify that the health endpoint properly rejects or handles non-GET HTTP methods like POST, PUT, DELETE with appropriate error responses.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "POST /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_status_code",
+            "selector": null,
+            "value": "405 Method Not Allowed",
+            "assertion": null
+          },
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "PUT /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_status_code",
+            "selector": null,
+            "value": "405 Method Not Allowed",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Non-GET methods return 405 Method Not Allowed status code.",
+        "tags": [
+          "api",
+          "health",
+          "http_methods"
+        ]
+      },
+      {
+        "id": "fdfe7e0f-0289-4c06-8072-4f3ead738f31",
+        "title": "Concurrent health check requests do not cause race conditions",
+        "category": "edge_case",
+        "description": "Verify that multiple simultaneous requests to GET /api/health are handled correctly without causing race conditions or resource exhaustion in ChromaStore initialization.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_concurrent_requests",
+            "selector": null,
+            "value": "10 parallel GET /api/health requests",
+            "assertion": null
+          },
+          {
+            "action": "verify_all_status_codes",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_consistent_responses",
+            "selector": null,
+            "value": "All responses have identical structure",
+            "assertion": null
+          }
+        ],
+        "expected_result": "All 10 concurrent requests return 200 with consistent response structure. No exceptions are logged.",
+        "tags": [
+          "api",
+          "health",
+          "concurrency",
+          "edge_case"
+        ]
+      },
+      {
+        "id": "fc3758b7-f7dc-4e2b-aea4-b5f263bf9925",
+        "title": "Health check verifies Ollama endpoint URL is correctly constructed",
+        "category": "happy_path",
+        "description": "Verify that the health check constructs the correct Ollama API URL by appending /api/tags to the configured OLLAMA_BASE_URL.",
+        "preconditions": [
+          "Ollama service running with models available"
+        ],
+        "steps": [
+          {
+            "action": "verify_logs",
+            "selector": null,
+            "value": "HTTP GET request to {OLLAMA_BASE_URL}/api/tags",
+            "assertion": null
+          },
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_status_code",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Health check correctly appends /api/tags path to OLLAMA_BASE_URL and successfully contacts Ollama.",
+        "tags": [
+          "api",
+          "health",
+          "ollama",
+          "url_construction"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T19:35:52.089794",
+    "source_diff_summary": "Changed 1 file(s): health.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "health.spec.ts",
+      "content": "import { test, expect } from '@playwright/test';\n\nconst BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000';\n\ntest.describe('Health API - Happy Path', () => {\n  test.beforeEach(async ({ request }) => {\n    // Shared setup for health endpoint tests\n  });\n\n  // SCENARIO_ID: c8a33bbc-bde7-4e59-a14c-d37057e20c93\n  test('Health check returns ok when all dependencies are healthy', async ({ request }) => {\n    const response = await request.get(`${BASE_URL}/api/health`);\n    \n    expect(response.status()).toBe(200);\n    \n    const body = await response.json();\n    expect(body.status).toBe('ok');\n    expect(body.ollama).toBe(true);\n    expect(body.chromadb).toBe(true);\n    expect(body).toHaveProperty('llm_model');\n    expect(typeof body.llm_model).toBe('string');\n    expect(body.llm_model.length).toBeGreaterThan(0);\n  });\n\n  // SCENARIO_ID: fc3758b7-f7dc-4e2b-aea4-b5f263bf9925\n  test('Health check verifies Ollama endpoint URL is correctly constructed', async ({ request }) => {\n    const response = await request.get(`${BASE_URL}/api/health`);\n    \n    expect(response.status()).toBe(200);\n    \n    const body = await response.json();\n    // If ollama is reachable, the URL was constructed correctly\n    expect(body).toHaveProperty('ollama');\n    expect(body).toHaveProperty('llm_model');\n  });\n});\n\ntest.describe('Health API - Negative', () => {\n  // SCENARIO_ID: 121aefaf-62ae-49fc-a7cf-502ad4ade8ed\n  test('Health check returns degraded status when Ollama is unreachable', async ({ request }) => {\n    // Note: This test requires Ollama service to be stopped or OLLAMA_BASE_URL misconfigured\n    // Run with: OLLAMA_BASE_URL=http://invalid:9999\n    const response = await request.get(`${BASE_URL}/api/health`);\n    \n    expect(response.status()).toBe(200);\n    \n    const body = await response.json();\n    expect(body.status).toBe('degraded');\n    expect(body.ollama).toBe(false);\n    expect(body.chromadb).toBe(true);\n  });\n\n  // SCENARIO_ID: 40f55144-2569-4aa2-a456-682839d8eab7\n  test('Health check returns degraded status when ChromaDB fails initialization', async ({ request }) => {\n    // Note: This test requires ChromaDB to be unavailable\n    // Run with ChromaDB service stopped or misconfigured\n    const response = await request.get(`${BASE_URL}/api/health`);\n    \n    expect(response.status()).toBe(200);\n    \n    const body = await response.json();\n    expect(body.status).toBe('degraded');\n    expect(body.ollama).toBe(true);\n    expect(body.chromadb).toBe(false);\n  });\n\n  // SCENARIO_ID: 9aefbe34-799f-427c-8fe8-83f368728837\n  test('Health check handles unexpected HTTP methods gracefully', async ({ request }) => {\n    // Test POST method\n    const postResponse = await request.post(`${BASE_URL}/api/health`);\n    expect(postResponse.status()).toBe(405);\n    \n    // Test PUT method\n    const putResponse = await request.put(`${BASE_URL}/api/health`);\n    expect(putResponse.status()).toBe(405);\n    \n    // Test DELETE method\n    const deleteResponse = await request.delete(`${BASE_URL}/api/health`);\n    expect(deleteResponse.status()).toBe(405);\n    \n    // Test PATCH method\n    const patchResponse = await request.patch(`${BASE_URL}/api/health`);\n    expect(patchResponse.status()).toBe(405);\n  });\n});\n\ntest.describe('Health API - Edge Case', () => {\n  // SCENARIO_ID: e329141a-7c43-45b8-a8a0-7ecae320f12a\n  test('Health check handles both dependencies failing simultaneously', async ({ request }) => {\n    // Note: This test requires both Ollama and ChromaDB to be unavailable\n    // Run with all services stopped\n    const response = await request.get(`${BASE_URL}/api/health`);\n    \n    expect(response.status()).toBe(200);\n    \n    const body = await response.json();\n    expect(body.status).toBe('degraded');\n    expect(body.ollama).toBe(false);\n    expect(body.chromadb).toBe(false);\n  });\n\n  // SCENARIO_ID: 5256fc97-0693-46aa-b5e5-b23c9afce6dc\n  test('Health check handles Ollama timeout correctly', async ({ request }) => {\n    // Note: This test requires Ollama to respond slowly (>3 seconds)\n    // The health endpoint has a 3-second timeout for Ollama requests\n    const startTime = Date.now();\n    const response = await request.get(`${BASE_URL}/api/health`);\n    const responseTime = Date.now() - startTime;\n    \n    expect(response.status()).toBe(200);\n    // Total response time should be reasonable even with timeout\n    expect(responseTime).toBeLessThan(5000);\n    \n    const body = await response.json();\n    expect(body).toHaveProperty('ollama');\n    // If timeout occurred, ollama should be false\n    expect(typeof body.ollama).toBe('boolean');\n  });\n\n  // SCENARIO_ID: fdfe7e0f-0289-4c06-8072-4f3ead738f31\n  test('Concurrent health check requests do not cause race conditions', async ({ request }) => {\n    const concurrentRequestCount = 10;\n    const requests = Array(concurrentRequestCount)\n      .fill(null)\n      .map(() => request.get(`${BASE_URL}/api/health`));\n    \n    const responses = await Promise.all(requests);\n    \n    // All requests should return 200\n    for (const response of responses) {\n      expect(response.status()).toBe(200);\n    }\n    \n    const bodies = await Promise.all(responses.map((r) => r.json()));\n    \n    // All responses should have consistent structure\n    const requiredFields = ['status', 'ollama', 'chromadb', 'llm_model'];\n    for (const body of bodies) {\n      for (const field of requiredFields) {\n        expect(body).toHaveProperty(field);\n      }\n    }\n    \n    // All responses should have identical values (no race conditions)\n    const firstBody = bodies[0];\n    for (const body of bodies) {\n      expect(body.status).toBe(firstBody.status);\n      expect(body.ollama).toBe(firstBody.ollama);\n      expect(body.chromadb).toBe(firstBody.chromadb);\n    }\n  });\n});\n\ntest.describe('Health API - Security', () => {\n  // SCENARIO_ID: f0de2f0c-eb57-4ea0-92be-593b39671534\n  test('Health endpoint is accessible without authentication', async ({ request }) => {\n    // Explicitly send request without any auth headers\n    const response = await request.get(`${BASE_URL}/api/health`, {\n      headers: {\n        // No Authorization, X-API-Key, or other auth headers\n        'Accept': 'application/json',\n      },\n    });\n    \n    // Health endpoint should be publicly accessible for Kubernetes probes\n    expect(response.status()).toBe(200);\n    \n    const body = await response.json();\n    expect(body).toHaveProperty('status');\n    expect(['ok', 'degraded']).toContain(body.status);\n  });\n\n  // SCENARIO_ID: 599d8ec7-aee5-4b84-adfe-282219ff4836\n  test('Health endpoint does not expose sensitive configuration data', async ({ request }) => {\n    const response = await request.get(`${BASE_URL}/api/health`);\n    \n    expect(response.status()).toBe(200);\n    \n    const body = await response.json();\n    const bodyKeys = Object.keys(body);\n    \n    // Only these fields should be present in the response\n    const allowedFields = ['status', 'ollama', 'chromadb', 'llm_model'];\n    for (const key of bodyKeys) {\n      expect(allowedFields).toContain(key);\n    }\n    \n    // Response should not contain sensitive keywords in any string value\n    const bodyString = JSON.stringify(body).toLowerCase();\n    const sensitiveKeywords = ['password', 'secret', 'api_key', 'apikey', 'token', 'credential', 'private'];\n    for (const keyword of sensitiveKeywords) {\n      expect(bodyString).not.toContain(keyword);\n    }\n    \n    // Verify no additional nested objects with sensitive data\n    for (const key of bodyKeys) {\n      expect(typeof body[key]).not.toBe('object');\n    }\n  });\n});\n",
+      "scenario_ids": [
+        "c8a33bbc-bde7-4e59-a14c-d37057e20c93",
+        "121aefaf-62ae-49fc-a7cf-502ad4ade8ed",
+        "40f55144-2569-4aa2-a456-682839d8eab7",
+        "e329141a-7c43-45b8-a8a0-7ecae320f12a",
+        "5256fc97-0693-46aa-b5e5-b23c9afce6dc",
+        "f0de2f0c-eb57-4ea0-92be-593b39671534",
+        "599d8ec7-aee5-4b84-adfe-282219ff4836",
+        "9aefbe34-799f-427c-8fe8-83f368728837",
+        "fdfe7e0f-0289-4c06-8072-4f3ead738f31",
+        "fc3758b7-f7dc-4e2b-aea4-b5f263bf9925"
+      ],
+      "generated_at": "2026-03-14T19:37:27.469019"
+    }
+  ],
+  "execution_results": [],
+  "heal_results": [],
+  "error": "Playwright timed out after 120s"
+}

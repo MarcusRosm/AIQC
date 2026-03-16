@@ -1,0 +1,560 @@
+{
+  "run_id": "4f15a87a-0d03-493d-ab00-950b17c71a8a",
+  "label": "Pipeline test - take 2",
+  "started_at": "2026-03-14T21:16:31.795495",
+  "completed_at": null,
+  "status": "failed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "11453a00-0e19-4f1b-936f-94a778d6d5a9",
+        "title": "Start pipeline run with valid request returns 202 Accepted",
+        "category": "happy_path",
+        "description": "Verify that POST /api/pipeline/run accepts a valid PipelineRunRequest and returns 202 status with run_id and queued status",
+        "preconditions": [
+          "Pipeline orchestrator is available",
+          "No existing run with same ID"
+        ],
+        "steps": [
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run",
+            "assertion": null
+          },
+          {
+            "action": "assert_status_code",
+            "selector": null,
+            "value": "202",
+            "assertion": null
+          },
+          {
+            "action": "assert_response_field",
+            "selector": null,
+            "value": "run_id",
+            "assertion": "matches UUID format"
+          },
+          {
+            "action": "assert_response_field",
+            "selector": null,
+            "value": "status",
+            "assertion": "equals 'queued'"
+          }
+        ],
+        "expected_result": "API returns 202 Accepted with JSON body containing valid run_id (UUID) and status 'queued'",
+        "tags": [
+          "api",
+          "pipeline",
+          "run"
+        ]
+      },
+      {
+        "id": "156780bf-3a98-4968-ba38-44cc16e6d6c5",
+        "title": "Complete pipeline flow - start run and receive SSE events",
+        "category": "happy_path",
+        "description": "Start a pipeline run and verify SSE stream delivers status events via GET /api/pipeline/status/{run_id}",
+        "preconditions": [
+          "Pipeline orchestrator is operational",
+          "SSE bus is configured"
+        ],
+        "steps": [
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run",
+            "assertion": null
+          },
+          {
+            "action": "extract_response_field",
+            "selector": null,
+            "value": "run_id",
+            "assertion": null
+          },
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "GET /api/pipeline/status/{run_id}",
+            "assertion": null
+          },
+          {
+            "action": "assert_sse_event_received",
+            "selector": null,
+            "value": "PipelineStage",
+            "assertion": "event type matches"
+          },
+          {
+            "action": "assert_sse_connection_open",
+            "selector": null,
+            "value": null,
+            "assertion": "connection remains open during processing"
+          }
+        ],
+        "expected_result": "SSE connection established and PipelineStage events received as pipeline progresses",
+        "tags": [
+          "api",
+          "pipeline",
+          "sse",
+          "integration"
+        ]
+      },
+      {
+        "id": "205af722-fa65-48a8-9b29-9747e0d4b0ce",
+        "title": "View pipeline run in reports after completion",
+        "category": "happy_path",
+        "description": "After a pipeline run completes, verify it appears in GET /api/reports list",
+        "preconditions": [
+          "At least one pipeline run has completed successfully"
+        ],
+        "steps": [
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run",
+            "assertion": null
+          },
+          {
+            "action": "wait_for_condition",
+            "selector": null,
+            "value": "pipeline_status == 'completed'",
+            "assertion": null
+          },
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "GET /api/reports",
+            "assertion": null
+          },
+          {
+            "action": "assert_status_code",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "assert_response_contains",
+            "selector": null,
+            "value": "run_id in summaries list",
+            "assertion": null
+          }
+        ],
+        "expected_result": "Completed pipeline run appears in reports list with correct metadata (run_id, status, test_count, heal_count)",
+        "tags": [
+          "api",
+          "reports",
+          "pipeline"
+        ]
+      },
+      {
+        "id": "c0c0b1d7-a9c7-4af7-9588-1bb907d38bd7",
+        "title": "Pipeline run with missing request body returns error",
+        "category": "negative",
+        "description": "Verify that POST /api/pipeline/run rejects requests with missing or empty request body",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run",
+            "assertion": null
+          },
+          {
+            "action": "assert_status_code",
+            "selector": null,
+            "value": "422",
+            "assertion": null
+          },
+          {
+            "action": "assert_error_message",
+            "selector": null,
+            "value": "validation error for request body",
+            "assertion": null
+          }
+        ],
+        "expected_result": "API returns 422 Unprocessable Entity with validation error details",
+        "tags": [
+          "api",
+          "pipeline",
+          "validation"
+        ]
+      },
+      {
+        "id": "c6086a58-6397-4e80-93fd-a366761ef8af",
+        "title": "Pipeline run with invalid field types returns validation error",
+        "category": "negative",
+        "description": "Verify that POST /api/pipeline/run rejects requests with invalid field types in PipelineRunRequest",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run",
+            "assertion": null
+          },
+          {
+            "action": "assert_status_code",
+            "selector": null,
+            "value": "422",
+            "assertion": null
+          },
+          {
+            "action": "assert_error_message_contains",
+            "selector": null,
+            "value": "target_url must be string",
+            "assertion": null
+          }
+        ],
+        "expected_result": "API returns 422 with specific field validation errors",
+        "tags": [
+          "api",
+          "pipeline",
+          "validation"
+        ]
+      },
+      {
+        "id": "284d23ef-629d-45bc-8a02-68aeda17c9e7",
+        "title": "Get SSE status for non-existent run_id returns error",
+        "category": "negative",
+        "description": "Verify that GET /api/pipeline/status/{run_id} handles requests for non-existent run IDs",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "GET /api/pipeline/status/nonexistent-run-12345",
+            "assertion": null
+          },
+          {
+            "action": "assert_status_code",
+            "selector": null,
+            "value": "404",
+            "assertion": null
+          },
+          {
+            "action": "assert_error_message",
+            "selector": null,
+            "value": "run not found",
+            "assertion": null
+          }
+        ],
+        "expected_result": "API returns 404 Not Found for non-existent run_id",
+        "tags": [
+          "api",
+          "pipeline",
+          "sse",
+          "negative"
+        ]
+      },
+      {
+        "id": "5ab4056c-33c2-4df5-927b-b5b224272709",
+        "title": "Multiple concurrent pipeline runs generate unique run_ids",
+        "category": "edge_case",
+        "description": "Verify that concurrent POST /api/pipeline/run requests each receive unique run_ids",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_concurrent_requests",
+            "selector": null,
+            "value": "POST /api/pipeline/run",
+            "assertion": null
+          },
+          {
+            "action": "assert_all_status_codes",
+            "selector": null,
+            "value": "202",
+            "assertion": null
+          },
+          {
+            "action": "assert_unique_values",
+            "selector": null,
+            "value": "run_id",
+            "assertion": "all run_ids are unique UUIDs"
+          }
+        ],
+        "expected_result": "All concurrent requests return 202 with unique run_ids, no collisions",
+        "tags": [
+          "api",
+          "pipeline",
+          "concurrency",
+          "edge_case"
+        ]
+      },
+      {
+        "id": "31267f33-2ac8-4ab9-bf91-88365eb48868",
+        "title": "SSE connection timeout handling",
+        "category": "edge_case",
+        "description": "Verify SSE connection behavior when pipeline run takes longer than expected",
+        "preconditions": [
+          "Pipeline configured with delayed processing"
+        ],
+        "steps": [
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run",
+            "assertion": null
+          },
+          {
+            "action": "extract_response_field",
+            "selector": null,
+            "value": "run_id",
+            "assertion": null
+          },
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "GET /api/pipeline/status/{run_id}",
+            "assertion": null
+          },
+          {
+            "action": "wait_for_sse_timeout",
+            "selector": null,
+            "value": "60000ms",
+            "assertion": null
+          },
+          {
+            "action": "assert_sse_connection_state",
+            "selector": null,
+            "value": null,
+            "assertion": "connection remains open or gracefully closed with completion event"
+          }
+        ],
+        "expected_result": "SSE connection remains active during long-running pipeline or closes gracefully after completion event",
+        "tags": [
+          "api",
+          "pipeline",
+          "sse",
+          "timeout",
+          "edge_case"
+        ]
+      },
+      {
+        "id": "2c70ea77-d295-4800-8e62-daf5eb8bdff8",
+        "title": "Reports list returns empty when reports directory does not exist",
+        "category": "edge_case",
+        "description": "Verify GET /api/reports returns empty list when REPORTS_DIR does not exist",
+        "preconditions": [
+          "REPORTS_DIR path does not exist or is empty"
+        ],
+        "steps": [
+          {
+            "action": "ensure_directory_absent",
+            "selector": null,
+            "value": "REPORTS_DIR",
+            "assertion": null
+          },
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "GET /api/reports",
+            "assertion": null
+          },
+          {
+            "action": "assert_status_code",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "assert_response_body",
+            "selector": null,
+            "value": null,
+            "assertion": "equals empty array []"
+          }
+        ],
+        "expected_result": "API returns 200 with empty JSON array []",
+        "tags": [
+          "api",
+          "reports",
+          "edge_case"
+        ]
+      },
+      {
+        "id": "1621ffc0-acdf-49f6-abad-ffdeee3aa20a",
+        "title": "Unauthorized request to start pipeline run",
+        "category": "security",
+        "description": "Verify POST /api/pipeline/run rejects requests without valid authentication",
+        "preconditions": [
+          "API requires authentication"
+        ],
+        "steps": [
+          {
+            "action": "send_api_request_without_auth",
+            "selector": null,
+            "value": "POST /api/pipeline/run",
+            "assertion": null
+          },
+          {
+            "action": "assert_status_code",
+            "selector": null,
+            "value": "401",
+            "assertion": null
+          },
+          {
+            "action": "assert_error_message",
+            "selector": null,
+            "value": "unauthorized",
+            "assertion": null
+          }
+        ],
+        "expected_result": "API returns 401 Unauthorized for requests without valid authentication token",
+        "tags": [
+          "api",
+          "pipeline",
+          "security",
+          "authentication"
+        ]
+      },
+      {
+        "id": "e158513c-633f-49f6-a9f7-a8a7dc128092",
+        "title": "SQL injection attempt in PipelineRunRequest fields",
+        "category": "security",
+        "description": "Verify that SQL injection payloads in PipelineRunRequest fields are safely handled",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run",
+            "assertion": null
+          },
+          {
+            "action": "assert_status_code",
+            "selector": null,
+            "value": "202",
+            "assertion": null
+          },
+          {
+            "action": "verify_no_sql_error_in_logs",
+            "selector": null,
+            "value": null,
+            "assertion": null
+          }
+        ],
+        "expected_result": "Request is processed safely, injection payload is escaped or sanitized, no SQL errors occur",
+        "tags": [
+          "api",
+          "pipeline",
+          "security",
+          "sql_injection"
+        ]
+      },
+      {
+        "id": "a28f8e0f-53fe-4528-afd9-749f73a8c172",
+        "title": "XSS payload in PipelineRunRequest label field",
+        "category": "security",
+        "description": "Verify that XSS payloads in string fields are not executed when displayed in reports",
+        "preconditions": [
+          "PipelineRunRequest has a label field"
+        ],
+        "steps": [
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run",
+            "assertion": null
+          },
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "GET /api/reports/{run_id}",
+            "assertion": null
+          },
+          {
+            "action": "assert_response_sanitized",
+            "selector": null,
+            "value": "label",
+            "assertion": "script tags are escaped or removed"
+          }
+        ],
+        "expected_result": "XSS payload is sanitized in API responses, script tags are escaped",
+        "tags": [
+          "api",
+          "pipeline",
+          "security",
+          "xss"
+        ]
+      },
+      {
+        "id": "04b9c0bc-4447-4952-891e-ba4715dc1509",
+        "title": "IDOR attempt - access another run's status without authorization",
+        "category": "security",
+        "description": "Verify that users cannot access pipeline status for runs they did not create",
+        "preconditions": [
+          "Multi-tenant system with user-specific runs",
+          "Run owned by different user exists"
+        ],
+        "steps": [
+          {
+            "action": "authenticate_as_user",
+            "selector": null,
+            "value": "user_a",
+            "assertion": null
+          },
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "POST /api/pipeline/run",
+            "assertion": null
+          },
+          {
+            "action": "extract_response_field",
+            "selector": null,
+            "value": "run_id",
+            "assertion": null
+          },
+          {
+            "action": "authenticate_as_user",
+            "selector": null,
+            "value": "user_b",
+            "assertion": null
+          },
+          {
+            "action": "send_api_request",
+            "selector": null,
+            "value": "GET /api/pipeline/status/{run_id}",
+            "assertion": null
+          },
+          {
+            "action": "assert_status_code",
+            "selector": null,
+            "value": "403",
+            "assertion": null
+          }
+        ],
+        "expected_result": "User cannot access another user's pipeline status, API returns 403 Forbidden",
+        "tags": [
+          "api",
+          "pipeline",
+          "security",
+          "idor"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T21:17:21.389465",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [],
+  "execution_results": [],
+  "heal_results": [],
+  "error": "Code generation failed after all retries.\nDetail: Ollama generate failed: "
+}

@@ -1,0 +1,214 @@
+{
+  "run_id": "0f3c8ffa-247c-428c-9b78-ef9416b558b7",
+  "label": "Test health route",
+  "started_at": "2026-03-14T23:15:27.997884",
+  "completed_at": "2026-03-14T23:16:02.477629",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/health.py",
+        "change_type": "modified",
+        "additions": 8,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/health.py b/app/api/routes/health.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/health.py\n+++ b/app/api/routes/health.py\n@@ -7,12 +7,16 @@\n from __future__ import annotations\n \n import httpx\n+import time\n+from datetime import datetime\n \n from fastapi import APIRouter\n \n from app.core.config import get_settings\n from app.core.logging import get_logger\n from app.rag.vector_store import ChromaStore\n+\n+START_TIME = time.time()\n \n logger = get_logger(__name__)\n router = APIRouter(prefix=\"/api/health\", tags=[\"health\"])\n@@ -47,11 +51,14 @@\n         logger.warning(\"ChromaDB health check failed: %s\", exc)\n \n     status = \"ok\" if (ollama_ok and chroma_ok) else \"degraded\"\n+    uptime_seconds = int(time.time() - START_TIME)\n+    \n     return {\n         \"status\": status,\n         \"ollama\": ollama_ok,\n         \"chromadb\": chroma_ok,\n         \"llm_model\": settings.OLLAMA_LLM_MODEL,\n         \"embed_model\": settings.OLLAMA_EMBED_MODEL,\n+        \"uptime\": f\"{uptime_seconds}s\",\n+        \"server_time\": datetime.now().isoformat(),\n     }"
+      }
+    ],
+    "summary": "Changed 1 file(s): health.py",
+    "total_additions": 8,
+    "total_deletions": 0,
+    "affected_routes": [],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "7d5e38d9-dfbd-4215-9c20-93f1b2072569",
+        "title": "Verify Successful Health Check Response",
+        "category": "happy_path",
+        "description": "Ensure the /api/health endpoint returns a 200 status and indicates both Ollama and ChromaDB are operational when services are running correctly.",
+        "preconditions": [
+          "Ollama service is running and reachable at OLLAMA_BASE_URL",
+          "ChromaDB is initialized correctly"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": "GET",
+            "value": "/api/health",
+            "assertion": "status_code == 200"
+          }
+        ],
+        "expected_result": "JSON response body should be {'ollama': true, 'chromadb': true}",
+        "tags": [
+          "api",
+          "health",
+          "smoke"
+        ]
+      },
+      {
+        "id": "60ebbe3f-bcbf-47fd-b0d4-03ee20d6ce29",
+        "title": "Handle Ollama Service Unreachable",
+        "category": "negative",
+        "description": "Verify the health check reports 'ollama: false' when the Ollama service is down or the connection is refused.",
+        "preconditions": [
+          "Ollama service is stopped or firewall blocks the port"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": "GET",
+            "value": "/api/health",
+            "assertion": "status_code == 200"
+          }
+        ],
+        "expected_result": "Response contains {'ollama': false} and system logs a warning regarding the connection failure.",
+        "tags": [
+          "api",
+          "health",
+          "resilience"
+        ]
+      },
+      {
+        "id": "254abea1-b7c3-43ed-b71e-a88494ad1cb6",
+        "title": "Ollama Service Request Timeout",
+        "category": "edge_case",
+        "description": "Ensure the health check does not hang indefinitely if Ollama is unresponsive, respecting the 3.0s timeout.",
+        "preconditions": [
+          "Network latency is introduced making OLLAMA_BASE_URL/api/tags respond in > 3 seconds"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": "GET",
+            "value": "/api/health",
+            "assertion": "response_time <= 4000"
+          }
+        ],
+        "expected_result": "The request returns within ~3 seconds with {'ollama': false} due to the httpx timeout logic.",
+        "tags": [
+          "api",
+          "health",
+          "performance"
+        ]
+      },
+      {
+        "id": "5c1e44f8-e74d-4c97-a095-e43a9f8b5030",
+        "title": "Ollama Service Returns Non-200 Status",
+        "category": "negative",
+        "description": "Verify that if Ollama returns an error code (e.g., 500 or 404), the health status identifies it as not OK.",
+        "preconditions": [
+          "Ollama service is reachable but /api/tags endpoint returns a 500 Internal Server Error"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": "GET",
+            "value": "/api/health",
+            "assertion": "status_code == 200"
+          }
+        ],
+        "expected_result": "The response field 'ollama' is false because status_code != 200.",
+        "tags": [
+          "api",
+          "health"
+        ]
+      },
+      {
+        "id": "aa7ae79a-4c03-465a-a580-148baac13b7a",
+        "title": "ChromaDB Initialization Failure",
+        "category": "negative",
+        "description": "Verify health status when ChromaDB vector store fails to initialize.",
+        "preconditions": [
+          "ChromaDB storage directory is read-only or corrupted"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": "GET",
+            "value": "/api/health",
+            "assertion": "status_code == 200"
+          }
+        ],
+        "expected_result": "The response field 'chromadb' is false.",
+        "tags": [
+          "api",
+          "health",
+          "storage"
+        ]
+      },
+      {
+        "id": "89c2f442-08e2-4237-ad4d-078d9369054e",
+        "title": "Invalid HTTP Method for Health Endpoint",
+        "category": "security",
+        "description": "Verify that the health check endpoint only allows GET requests and properly rejects other methods.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": "POST",
+            "value": "/api/health",
+            "assertion": "status_code == 405"
+          },
+          {
+            "action": "send_request",
+            "selector": "DELETE",
+            "value": "/api/health",
+            "assertion": "status_code == 405"
+          }
+        ],
+        "expected_result": "Server returns 405 Method Not Allowed for non-GET requests.",
+        "tags": [
+          "api",
+          "security"
+        ]
+      },
+      {
+        "id": "8fcb564a-c750-4224-986c-f94b823198d0",
+        "title": "Ollama Base URL Configuration Error",
+        "category": "edge_case",
+        "description": "Check behavior when OLLAMA_BASE_URL is set to an invalid URL format.",
+        "preconditions": [
+          "OLLAMA_BASE_URL is set to 'not-a-url' in environment settings"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": "GET",
+            "value": "/api/health",
+            "assertion": "status_code == 200"
+          }
+        ],
+        "expected_result": "The try/except block handles the invalid URL exception and returns {'ollama': false}.",
+        "tags": [
+          "api",
+          "health",
+          "config"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T23:15:42.173908",
+    "source_diff_summary": "Changed 1 file(s): health.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_health_api.py",
+      "content": "import os\nimport time\nimport pytest\nfrom playwright.sync_api import Page, expect\n\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\nHEALTH_ENDPOINT = f\"{BASE_URL}/api/health\"\n\n# SCENARIO_ID: 7d5e38d9-dfbd-4215-9c20-93f1b2072569\ndef test_health_check_returns_success_when_services_operational(page: Page):\n    \"\"\"Ensure the /api/health endpoint returns a 200 status and indicates both Ollama and ChromaDB are operational.\"\"\"\n    # Navigate as required by instructions, though this is an API test\n    page.goto(BASE_URL)\n    \n    response = page.request.get(HEALTH_ENDPOINT)\n    \n    expect(response).to_be_ok()\n    payload = response.json()\n    assert payload.get(\"ollama\") is True\n    assert payload.get(\"chromadb\") is True\n\n# SCENARIO_ID: 60ebbe3f-bcbf-47fd-b0d4-03ee20d6ce29\ndef test_health_check_reports_ollama_offline(page: Page):\n    \"\"\"Verify the health check reports 'ollama: false' when the Ollama service is down.\"\"\"\n    page.goto(BASE_URL)\n    \n    response = page.request.get(HEALTH_ENDPOINT)\n    \n    expect(response).to_be_ok()\n    payload = response.json()\n    assert payload.get(\"ollama\") is False\n\n# SCENARIO_ID: 254abea1-b7c3-43ed-b71e-a88494ad1cb6\ndef test_health_check_handles_ollama_timeout(page: Page):\n    \"\"\"Ensure the health check does not hang indefinitely if Ollama is unresponsive.\"\"\"\n    page.goto(BASE_URL)\n    \n    start_time = time.perf_counter()\n    response = page.request.get(HEALTH_ENDPOINT)\n    end_time = time.perf_counter()\n    \n    duration_ms = (end_time - start_time) * 1000\n    \n    expect(response).to_be_ok()\n    assert duration_ms <= 4000, f\"Response took too long: {duration_ms}ms\"\n    assert response.json().get(\"ollama\") is False\n\n# SCENARIO_ID: 5c1e44f8-e74d-4c97-a095-e43a9f8b5030\ndef test_health_check_reports_ollama_error_status(page: Page):\n    \"\"\"Verify that if Ollama returns an error code, the health status identifies it as not OK.\"\"\"\n    page.goto(BASE_URL)\n    \n    response = page.request.get(HEALTH_ENDPOINT)\n    \n    expect(response).to_be_ok()\n    assert response.json().get(\"ollama\") is False\n\n# SCENARIO_ID: aa7ae79a-4c03-465a-a580-148baac13b7a\ndef test_health_check_reports_chromadb_initialization_failure(page: Page):\n    \"\"\"Verify health status when ChromaDB vector store fails to initialize.\"\"\"\n    page.goto(BASE_URL)\n    \n    response = page.request.get(HEALTH_ENDPOINT)\n    \n    expect(response).to_be_ok()\n    assert response.json().get(\"chromadb\") is False\n\n# SCENARIO_ID: 89c2f442-08e2-4237-ad4d-078d9369054e\ndef test_health_endpoint_rejects_invalid_http_methods(page: Page):\n    \"\"\"Verify that the health check endpoint only allows GET requests.\"\"\"\n    page.goto(BASE_URL)\n    \n    # Test POST\n    post_response = page.request.post(HEALTH_ENDPOINT)\n    assert post_response.status == 405\n    \n    # Test DELETE\n    delete_response = page.request.delete(HEALTH_ENDPOINT)\n    assert delete_response.status == 405\n    \n    # Playwright's expect for APIResponse status check\n    expect(post_response).not_to_be_ok()\n\n# SCENARIO_ID: 8fcb564a-c750-4224-986c-f94b823198d0\ndef test_health_check_handles_invalid_ollama_url_config(page: Page):\n    \"\"\"Check behavior when OLLAMA_BASE_URL is set to an invalid URL format.\"\"\"\n    page.goto(BASE_URL)\n    \n    response = page.request.get(HEALTH_ENDPOINT)\n    \n    expect(response).to_be_ok()\n    assert response.json().get(\"ollama\") is False\n\"",
+      "scenario_ids": [
+        "7d5e38d9-dfbd-4215-9c20-93f1b2072569",
+        "60ebbe3f-bcbf-47fd-b0d4-03ee20d6ce29",
+        "254abea1-b7c3-43ed-b71e-a88494ad1cb6",
+        "5c1e44f8-e74d-4c97-a095-e43a9f8b5030",
+        "aa7ae79a-4c03-465a-a580-148baac13b7a",
+        "89c2f442-08e2-4237-ad4d-078d9369054e",
+        "8fcb564a-c750-4224-986c-f94b823198d0"
+      ],
+      "generated_at": "2026-03-14T23:16:02.056578"
+    }
+  ],
+  "execution_results": [],
+  "heal_results": [],
+  "error": null
+}

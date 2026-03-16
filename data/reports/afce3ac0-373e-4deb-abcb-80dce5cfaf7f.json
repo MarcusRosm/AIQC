@@ -1,0 +1,13 @@
+{
+  "run_id": "afce3ac0-373e-4deb-abcb-80dce5cfaf7f",
+  "label": "Concurrent-Run-1",
+  "started_at": "2026-03-15T14:03:03.334228",
+  "completed_at": null,
+  "status": "failed",
+  "diff_result": null,
+  "scenario_list": null,
+  "generated_specs": [],
+  "execution_results": [],
+  "heal_results": [],
+  "error": "Could not find any file-level diff sections. Ensure the input is a standard unified diff."
+}

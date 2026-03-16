@@ -1,0 +1,585 @@
+{
+  "run_id": "46e34c4e-97ba-4802-b60e-e5056affd85c",
+  "label": "Health",
+  "started_at": "2026-03-14T20:30:24.897466",
+  "completed_at": "2026-03-14T20:31:58.111135",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/health.py",
+        "change_type": "modified",
+        "additions": 8,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/health.py b/app/api/routes/health.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/health.py\n+++ b/app/api/routes/health.py\n@@ -7,12 +7,16 @@\n from __future__ import annotations\n \n import httpx\n+import time\n+from datetime import datetime\n \n from fastapi import APIRouter\n \n from app.core.config import get_settings\n from app.core.logging import get_logger\n from app.rag.vector_store import ChromaStore\n+\n+START_TIME = time.time()\n \n logger = get_logger(__name__)\n router = APIRouter(prefix=\"/api/health\", tags=[\"health\"])\n@@ -47,11 +51,14 @@\n         logger.warning(\"ChromaDB health check failed: %s\", exc)\n \n     status = \"ok\" if (ollama_ok and chroma_ok) else \"degraded\"\n+    uptime_seconds = int(time.time() - START_TIME)\n+    \n     return {\n         \"status\": status,\n         \"ollama\": ollama_ok,\n         \"chromadb\": chroma_ok,\n         \"llm_model\": settings.OLLAMA_LLM_MODEL,\n         \"embed_model\": settings.OLLAMA_EMBED_MODEL,\n+        \"uptime\": f\"{uptime_seconds}s\",\n+        \"server_time\": datetime.now().isoformat(),\n     }"
+      }
+    ],
+    "summary": "Changed 1 file(s): health.py",
+    "total_additions": 8,
+    "total_deletions": 0,
+    "affected_routes": [],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "35cf1c67-f250-41d8-9e0b-08b77cf069cc",
+        "title": "Health check returns ok status when all dependencies are healthy",
+        "category": "happy_path",
+        "description": "Verify that GET /api/health returns status 'ok' when both Ollama and ChromaDB are reachable and functioning correctly.",
+        "preconditions": [
+          "Ollama service is running and accessible at OLLAMA_BASE_URL",
+          "ChromaDB is initialized and collection is accessible"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_status",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "status",
+            "assertion": "equals 'ok'"
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "ollama",
+            "assertion": "equals true"
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "chromadb",
+            "assertion": "equals true"
+          }
+        ],
+        "expected_result": "Response contains status='ok', ollama=true, chromadb=true, and llm_model is populated",
+        "tags": [
+          "health",
+          "api",
+          "readiness"
+        ]
+      },
+      {
+        "id": "16742cdb-426c-41e8-a9e7-87d4cfd3b6b0",
+        "title": "Health check returns LLM model configuration in response",
+        "category": "happy_path",
+        "description": "Verify that the health endpoint returns the configured LLM model name from settings.",
+        "preconditions": [
+          "OLLAMA_LLM_MODEL is configured in application settings"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_status",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "llm_model",
+            "assertion": "matches configured OLLAMA_LLM_MODEL value"
+          }
+        ],
+        "expected_result": "Response includes llm_model field with correct model name from configuration",
+        "tags": [
+          "health",
+          "api",
+          "configuration"
+        ]
+      },
+      {
+        "id": "af3b89c5-6366-4788-96c6-031f2bb97154",
+        "title": "Health check returns degraded status when Ollama is unreachable",
+        "category": "negative",
+        "description": "Verify that the health endpoint returns 'degraded' status and ollama=false when Ollama HTTP API is not accessible.",
+        "preconditions": [
+          "Ollama service is stopped or OLLAMA_BASE_URL is unreachable",
+          "ChromaDB is functioning normally"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_status",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "status",
+            "assertion": "equals 'degraded'"
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "ollama",
+            "assertion": "equals false"
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "chromadb",
+            "assertion": "equals true"
+          }
+        ],
+        "expected_result": "Response contains status='degraded', ollama=false, chromadb=true; request completes without error",
+        "tags": [
+          "health",
+          "api",
+          "dependency-failure"
+        ]
+      },
+      {
+        "id": "71f958a4-4466-4a8e-a7b8-b7593cd67cf5",
+        "title": "Health check returns degraded status when ChromaDB fails initialization",
+        "category": "negative",
+        "description": "Verify that the health endpoint returns 'degraded' status and chromadb=false when ChromaDB collection cannot be initialized.",
+        "preconditions": [
+          "Ollama service is running",
+          "ChromaDB is misconfigured or collection is inaccessible"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_status",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "status",
+            "assertion": "equals 'degraded'"
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "ollama",
+            "assertion": "equals true"
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "chromadb",
+            "assertion": "equals false"
+          }
+        ],
+        "expected_result": "Response contains status='degraded', ollama=true, chromadb=false; request completes without error",
+        "tags": [
+          "health",
+          "api",
+          "dependency-failure"
+        ]
+      },
+      {
+        "id": "75e22ef6-9164-4eb0-b24c-24f10767bb62",
+        "title": "Health check handles Ollama connection timeout gracefully",
+        "category": "edge_case",
+        "description": "Verify that the 3-second timeout for Ollama health check is enforced and doesn't cause request to hang.",
+        "preconditions": [
+          "Ollama endpoint exists but responds slowly (>3 seconds)",
+          "ChromaDB is functioning"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_time",
+            "selector": null,
+            "value": "< 5 seconds total",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_status",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "ollama",
+            "assertion": "equals false"
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "status",
+            "assertion": "equals 'degraded'"
+          }
+        ],
+        "expected_result": "Request completes within 5 seconds total, returns degraded status with ollama=false",
+        "tags": [
+          "health",
+          "api",
+          "timeout",
+          "performance"
+        ]
+      },
+      {
+        "id": "8f15cd8f-c9be-4cb3-a827-3b21b2b08816",
+        "title": "Health check returns degraded when both dependencies fail",
+        "category": "negative",
+        "description": "Verify graceful handling when both Ollama and ChromaDB are unavailable simultaneously.",
+        "preconditions": [
+          "Ollama service is unavailable",
+          "ChromaDB is inaccessible"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_status",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "status",
+            "assertion": "equals 'degraded'"
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "ollama",
+            "assertion": "equals false"
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "chromadb",
+            "assertion": "equals false"
+          }
+        ],
+        "expected_result": "Response contains status='degraded', ollama=false, chromadb=false; endpoint still returns 200 OK",
+        "tags": [
+          "health",
+          "api",
+          "dependency-failure"
+        ]
+      },
+      {
+        "id": "45617072-b9cc-44e0-8b21-d4da0ef5524b",
+        "title": "Health endpoint handles concurrent requests correctly",
+        "category": "edge_case",
+        "description": "Verify that the health endpoint handles multiple simultaneous requests without race conditions or resource exhaustion.",
+        "preconditions": [
+          "Both Ollama and ChromaDB services are running"
+        ],
+        "steps": [
+          {
+            "action": "send_concurrent_requests",
+            "selector": null,
+            "value": "GET /api/health (10 parallel requests)",
+            "assertion": null
+          },
+          {
+            "action": "verify_all_responses_status",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_all_responses_consistent",
+            "selector": null,
+            "value": "all responses have identical structure",
+            "assertion": null
+          }
+        ],
+        "expected_result": "All 10 requests return 200 status with consistent response structure; no timeouts or errors",
+        "tags": [
+          "health",
+          "api",
+          "concurrency",
+          "load"
+        ]
+      },
+      {
+        "id": "24688443-7c13-4ad6-9b6c-a7ba3b167ee2",
+        "title": "Health check does not expose sensitive configuration details",
+        "category": "security",
+        "description": "Verify that the health endpoint only returns necessary information and does not leak sensitive data like API keys or internal URLs.",
+        "preconditions": [
+          "Application has various sensitive settings configured"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "OLLAMA_BASE_URL",
+            "assertion": "not present in response"
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "REPORTS_DIR",
+            "assertion": "not present in response"
+          },
+          {
+            "action": "verify_response_keys",
+            "selector": null,
+            "value": "response keys",
+            "assertion": "only contains: status, ollama, chromadb, llm_model"
+          }
+        ],
+        "expected_result": "Response contains only expected fields (status, ollama, chromadb, llm_model); no sensitive configuration exposed",
+        "tags": [
+          "health",
+          "api",
+          "security",
+          "information-disclosure"
+        ]
+      },
+      {
+        "id": "cda75e4c-51a2-4579-86a7-12171e66f6eb",
+        "title": "Health endpoint is accessible without authentication",
+        "category": "security",
+        "description": "Verify that health endpoint is intentionally public for Kubernetes readiness probes without requiring authentication.",
+        "preconditions": [
+          "No authentication token provided"
+        ],
+        "steps": [
+          {
+            "action": "send_request_without_auth",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_status",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "status",
+            "assertion": "present"
+          }
+        ],
+        "expected_result": "Health endpoint returns 200 without authentication; intended public access for health probes",
+        "tags": [
+          "health",
+          "api",
+          "security",
+          "authentication"
+        ]
+      },
+      {
+        "id": "ad53ec6b-8347-4a82-b090-4e3f2983823c",
+        "title": "Health check handles non-200 Ollama response correctly",
+        "category": "edge_case",
+        "description": "Verify that health check correctly identifies Ollama as unhealthy when it returns non-200 status codes.",
+        "preconditions": [
+          "Ollama endpoint is reachable but returns error status (500, 404, etc.)"
+        ],
+        "steps": [
+          {
+            "action": "send_request",
+            "selector": null,
+            "value": "GET /api/health",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_status",
+            "selector": null,
+            "value": "200",
+            "assertion": null
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "ollama",
+            "assertion": "equals false"
+          },
+          {
+            "action": "verify_response_body",
+            "selector": null,
+            "value": "status",
+            "assertion": "equals 'degraded'"
+          }
+        ],
+        "expected_result": "Health check returns degraded status with ollama=false when Ollama returns non-200 response",
+        "tags": [
+          "health",
+          "api",
+          "error-handling"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T20:30:47.715983",
+    "source_diff_summary": "Changed 1 file(s): health.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_health_api.py",
+      "content": "\"\"\"\nHealth API endpoint tests for GET /api/health.\n\nTests cover:\n- Happy path scenarios\n- Negative scenarios (dependency failures)\n- Edge cases (timeouts, concurrent requests)\n- Security considerations\n\"\"\"\n\nimport os\nimport time\nimport pytest\nfrom playwright.sync_api import sync_playwright, APIRequestContext\n\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\n\n\n@pytest.fixture\ndef api_request() -> APIRequestContext:\n    \"\"\"Create an API request context for each test.\"\"\"\n    with sync_playwright() as p:\n        context = p.request.new_context(base_url=BASE_URL)\n        yield context\n        context.dispose()\n\n\n# SCENARIO_ID: 35cf1c67-f250-41d8-9e0b-08b77cf069cc\n@pytest.mark.health\n@pytest.mark.api\n@pytest.mark.readiness\n@pytest.mark.happy_path\ndef test_health_check_returns_ok_status_when_all_dependencies_healthy(api_request: APIRequestContext):\n    \"\"\"\n    Verify that GET /api/health returns status 'ok' when both \n    Ollama and ChromaDB are reachable and functioning correctly.\n    \n    Preconditions:\n    - Ollama service is running and accessible at OLLAMA_BASE_URL\n    - ChromaDB is initialized and collection is accessible\n    \"\"\"\n    response = api_request.get(\"/api/health\")\n    \n    assert response.status == 200, f\"Expected status 200, got {response.status}\"\n    \n    body = response.json()\n    assert body[\"status\"] == \"ok\", f\"Expected status 'ok', got {body['status']}\"\n    assert body[\"ollama\"] is True, f\"Expected ollama=True, got {body['ollama']}\"\n    assert body[\"chromadb\"] is True, f\"Expected chromadb=True, got {body['chromadb']}\"\n    assert \"llm_model\" in body, \"llm_model field missing from response\"\n    assert body[\"llm_model\"], \"llm_model should be populated\"\n\n\n# SCENARIO_ID: 16742cdb-426c-41e8-a9e7-87d4cfd3b6b0\n@pytest.mark.health\n@pytest.mark.api\n@pytest.mark.configuration\n@pytest.mark.happy_path\ndef test_health_check_returns_llm_model_configuration_in_response(api_request: APIRequestContext):\n    \"\"\"\n    Verify that the health endpoint returns the configured LLM model name from settings.\n    \n    Preconditions:\n    - OLLAMA_LLM_MODEL is configured in application settings\n    \"\"\"\n    response = api_request.get(\"/api/health\")\n    \n    assert response.status == 200, f\"Expected status 200, got {response.status}\"\n    \n    body = response.json()\n    assert \"llm_model\" in body, \"llm_model field missing from response\"\n    \n    expected_model = os.environ.get(\"OLLAMA_LLM_MODEL\", \"llama3.2\")\n    assert body[\"llm_model\"] == expected_model, \\\n        f\"Expected llm_model='{expected_model}', got '{body['llm_model']}'\"\n\n\n# SCENARIO_ID: af3b89c5-6366-4788-96c6-031f2bb97154\n@pytest.mark.health\n@pytest.mark.api\n@pytest.mark.dependency_failure\n@pytest.mark.negative\ndef test_health_check_returns_degraded_status_when_ollama_unreachable(api_request: APIRequestContext):\n    \"\"\"\n    Verify that the health endpoint returns 'degraded' status and ollama=false \n    when Ollama HTTP API is not accessible.\n    \n    Preconditions:\n    - Ollama service is stopped or OLLAMA_BASE_URL is unreachable\n    - ChromaDB is functioning normally\n    \"\"\"\n    response = api_request.get(\"/api/health\")\n    \n    assert response.status == 200, f\"Expected status 200, got {response.status}\"\n    \n    body = response.json()\n    assert body[\"status\"] == \"degraded\", f\"Expected status 'degraded', got {body['status']}\"\n    assert body[\"ollama\"] is False, f\"Expected ollama=False, got {body['ollama']}\"\n    assert body[\"chromadb\"] is True, f\"Expected chromadb=True, got {body['chromadb']}\"\n\n\n# SCENARIO_ID: 71f958a4-4466-4a8e-a7b8-b7593cd67cf5\n@pytest.mark.health\n@pytest.mark.api\n@pytest.mark.dependency_failure\n@pytest.mark.negative\ndef test_health_check_returns_degraded_status_when_chromadb_fails_initialization(api_request: APIRequestContext):\n    \"\"\"\n    Verify that the health endpoint returns 'degraded' status and chromadb=false \n    when ChromaDB collection cannot be initialized.\n    \n    Preconditions:\n    - Ollama service is running\n    - ChromaDB is misconfigured or collection is inaccessible\n    \"\"\"\n    response = api_request.get(\"/api/health\")\n    \n    assert response.status == 200, f\"Expected status 200, got {response.status}\"\n    \n    body = response.json()\n    assert body[\"status\"] == \"degraded\", f\"Expected status 'degraded', got {body['status']}\"\n    assert body[\"ollama\"] is True, f\"Expected ollama=True, got {body['ollama']}\"\n    assert body[\"chromadb\"] is False, f\"Expected chromadb=False, got {body['chromadb']}\"\n\n\n# SCENARIO_ID: 75e22ef6-9164-4eb0-b24c-24f10767bb62\n@pytest.mark.health\n@pytest.mark.api\n@pytest.mark.timeout\n@pytest.mark.performance\n@pytest.mark.edge_case\ndef test_health_check_handles_ollama_connection_timeout_gracefully(api_request: APIRequestContext):\n    \"\"\"\n    Verify that the 3-second timeout for Ollama health check is enforced \n    and doesn't cause request to hang.\n    \n    Preconditions:\n    - Ollama endpoint exists but responds slowly (>3 seconds)\n    - ChromaDB is functioning\n    \"\"\"\n    start_time = time.time()\n    response = api_request.get(\"/api/health\")\n    elapsed_time = time.time() - start_time\n    \n    assert elapsed_time < 5, f\"Response took {elapsed_time:.2f}s, expected < 5s total\"\n    assert response.status == 200, f\"Expected status 200, got {response.status}\"\n    \n    body = response.json()\n    assert body[\"ollama\"] is False, f\"Expected ollama=False, got {body['ollama']}\"\n    assert body[\"status\"] == \"degraded\", f\"Expected status 'degraded', got {body['status']}\"\n\n\n# SCENARIO_ID: 8f15cd8f-c9be-4cb3-a827-3b21b2b08816\n@pytest.mark.health\n@pytest.mark.api\n@pytest.mark.dependency_failure\n@pytest.mark.negative\ndef test_health_check_returns_degraded_when_both_dependencies_fail(api_request: APIRequestContext):\n    \"\"\"\n    Verify graceful handling when both Ollama and ChromaDB are unavailable simultaneously.\n    \n    Preconditions:\n    - Ollama service is unavailable\n    - ChromaDB is inaccessible\n    \"\"\"\n    response = api_request.get(\"/api/health\")\n    \n    assert response.status == 200, f\"Expected status 200, got {response.status}\"\n    \n    body = response.json()\n    assert body[\"status\"] == \"degraded\", f\"Expected status 'degraded', got {body['status']}\"\n    assert body[\"ollama\"] is False, f\"Expected ollama=False, got {body['ollama']}\"\n    assert body[\"chromadb\"] is False, f\"Expected chromadb=False, got {body['chromadb']}\"\n\n\n# SCENARIO_ID: 45617072-b9cc-44e0-8b21-d4da0ef5524b\n@pytest.mark.health\n@pytest.mark.api\n@pytest.mark.concurrency\n@pytest.mark.load\n@pytest.mark.edge_case\ndef test_health_endpoint_handles_concurrent_requests_correctly():\n    \"\"\"\n    Verify that the health endpoint handles multiple simultaneous requests \n    without race conditions or resource exhaustion.\n    \n    Preconditions:\n    - Both Ollama and ChromaDB services are running\n    \"\"\"\n    import concurrent.futures\n    \n    def make_health_request():\n        \"\"\"Make a single health check request.\"\"\"\n        with sync_playwright() as p:\n            ctx = p.request.new_context(base_url=BASE_URL)\n            resp = ctx.get(\"/api/health\")\n            result = {\"status\": resp.status, \"body\": resp.json()}\n            ctx.dispose()\n            return result\n    \n    concurrent_requests = 10\n    \n    with concurrent.futures.ThreadPoolExecutor(max_workers=concurrent_requests) as executor:\n        futures = [executor.submit(make_health_request) for _ in range(concurrent_requests)]\n        results = [f.result() for f in concurrent.futures.as_completed(futures)]\n    \n    for i, result in enumerate(results):\n        assert result[\"status\"] == 200, \\\n            f\"Request {i} returned status {result['status']}, expected 200\"\n    \n    first_body = results[0][\"body\"]\n    expected_keys = set(first_body.keys())\n    \n    for i, result in enumerate(results[1:], 1):\n        actual_keys = set(result[\"body\"].keys())\n        assert actual_keys == expected_keys, \\\n            f\"Request {i} has different keys: {actual_keys}, expected {expected_keys}\"\n\n\n# SCENARIO_ID: 24688443-7c13-4ad6-9b6c-a7ba3b167ee2\n@pytest.mark.health\n@pytest.mark.api\n@pytest.mark.security\n@pytest.mark.information_disclosure\ndef test_health_check_does_not_expose_sensitive_configuration_details(api_request: APIRequestContext):\n    \"\"\"\n    Verify that the health endpoint only returns necessary information and \n    does not leak sensitive data like API keys or internal URLs.\n    \n    Preconditions:\n    - Application has various sensitive settings configured\n    \"\"\"\n    response = api_request.get(\"/api/health\")\n    \n    assert response.status == 200, f\"Expected status 200, got {response.status}\"\n    \n    body = response.json()\n    body_str = str(body)\n    \n    assert \"OLLAMA_BASE_URL\" not in body, \"OLLAMA_BASE_URL should not be exposed in response\"\n    assert \"REPORTS_DIR\" not in body, \"REPORTS_DIR should not be exposed in response\"\n    \n    sensitive_terms = [\"api_key\", \"password\", \"secret\", \"token\", \"credential\"]\n    for term in sensitive_terms:\n        assert term.lower() not in body_str.lower(), \\\n            f\"Sensitive term '{term}' should not appear in response\"\n    \n    expected_keys = {\"status\", \"ollama\", \"chromadb\", \"llm_model\"}\n    actual_keys = set(body.keys())\n    assert actual_keys == expected_keys, \\\n        f\"Expected keys {expected_keys}, got {actual_keys}\"\n\n\n# SCENARIO_ID: cda75e4c-51a2-4579-86a7-12171e66f6eb\n@pytest.mark.health\n@pytest.mark.api\n@pytest.mark.security\n@pytest.mark.authentication\ndef test_health_endpoint_is_accessible_without_authentication(api_request: APIRequestContext):\n    \"\"\"\n    Verify that health endpoint is intentionally public for Kubernetes \n    readiness probes without requiring authentication.\n    \n    Preconditions:\n    - No authentication token provided\n    \"\"\"\n    response = api_request.get(\"/api/health\")\n    \n    assert response.status == 200, \\\n        \"Health endpoint should be accessible without authentication\"\n    \n    body = response.json()\n    assert \"status\" in body, \"Response should contain status field\"\n    assert body[\"status\"] in [\"ok\", \"degraded\"], \\\n        f\"Status should be 'ok' or 'degraded', got '{body['status']}'\"\n\n\n# SCENARIO_ID: ad53ec6b-8347-4a82-b090-4e3f2983823c\n@pytest.mark.health\n@pytest.mark.api\n@pytest.mark.error_handling\n@pytest.mark.edge_case\ndef test_health_check_handles_non_200_ollama_response_correctly(api_request: APIRequestContext):\n    \"\"\"\n    Verify that health check correctly identifies Ollama as unhealthy \n    when it returns non-200 status codes.\n    \n    Preconditions:\n    - Ollama endpoint is reachable but returns error status (500, 404, etc.)\n    \"\"\"\n    response = api_request.get(\"/api/health\")\n    \n    assert response.status == 200, f\"Expected status 200, got {response.status}\"\n    \n    body = response.json()\n    assert body[\"ollama\"] is False, f\"Expected ollama=False, got {body['ollama']}\"\n    assert body[\"status\"] == \"degraded\", f\"Expected status 'degraded', got {body['status']}\"\n",
+      "scenario_ids": [
+        "35cf1c67-f250-41d8-9e0b-08b77cf069cc",
+        "16742cdb-426c-41e8-a9e7-87d4cfd3b6b0",
+        "af3b89c5-6366-4788-96c6-031f2bb97154",
+        "71f958a4-4466-4a8e-a7b8-b7593cd67cf5",
+        "75e22ef6-9164-4eb0-b24c-24f10767bb62",
+        "8f15cd8f-c9be-4cb3-a827-3b21b2b08816",
+        "45617072-b9cc-44e0-8b21-d4da0ef5524b",
+        "24688443-7c13-4ad6-9b6c-a7ba3b167ee2",
+        "cda75e4c-51a2-4579-86a7-12171e66f6eb",
+        "ad53ec6b-8347-4a82-b090-4e3f2983823c"
+      ],
+      "generated_at": "2026-03-14T20:31:51.829734"
+    }
+  ],
+  "execution_results": [
+    {
+      "test_title": "test_health_check_returns_ok_status_when_all_dependencies_healthy",
+      "spec_file": "generated_tests/46e34c4e-97ba-4802-b60e-e5056affd85c/test_health_api.py",
+      "status": "passed",
+      "duration_ms": 345,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_check_returns_llm_model_configuration_in_response",
+      "spec_file": "generated_tests/46e34c4e-97ba-4802-b60e-e5056affd85c/test_health_api.py",
+      "status": "failed",
+      "duration_ms": 326,
+      "error_message": "AssertionError: Expected llm_model='llama3.2', got 'glm-5:cloud'\nassert 'glm-5:cloud' == 'llama3.2'\n  \n  - llama3.2\n  + glm-5:cloud",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_check_returns_degraded_status_when_ollama_unreachable",
+      "spec_file": "generated_tests/46e34c4e-97ba-4802-b60e-e5056affd85c/test_health_api.py",
+      "status": "failed",
+      "duration_ms": 341,
+      "error_message": "AssertionError: Expected status 'degraded', got ok\nassert 'ok' == 'degraded'\n  \n  - degraded\n  + ok",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_check_returns_degraded_status_when_chromadb_fails_initialization",
+      "spec_file": "generated_tests/46e34c4e-97ba-4802-b60e-e5056affd85c/test_health_api.py",
+      "status": "failed",
+      "duration_ms": 340,
+      "error_message": "AssertionError: Expected status 'degraded', got ok\nassert 'ok' == 'degraded'\n  \n  - degraded\n  + ok",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_check_handles_ollama_connection_timeout_gracefully",
+      "spec_file": "generated_tests/46e34c4e-97ba-4802-b60e-e5056affd85c/test_health_api.py",
+      "status": "failed",
+      "duration_ms": 341,
+      "error_message": "AssertionError: Expected ollama=False, got True\nassert True is False",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_check_returns_degraded_when_both_dependencies_fail",
+      "spec_file": "generated_tests/46e34c4e-97ba-4802-b60e-e5056affd85c/test_health_api.py",
+      "status": "failed",
+      "duration_ms": 340,
+      "error_message": "AssertionError: Expected status 'degraded', got ok\nassert 'ok' == 'degraded'\n  \n  - degraded\n  + ok",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_endpoint_handles_concurrent_requests_correctly",
+      "spec_file": "generated_tests/46e34c4e-97ba-4802-b60e-e5056affd85c/test_health_api.py",
+      "status": "passed",
+      "duration_ms": 809,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_check_does_not_expose_sensitive_configuration_details",
+      "spec_file": "generated_tests/46e34c4e-97ba-4802-b60e-e5056affd85c/test_health_api.py",
+      "status": "failed",
+      "duration_ms": 337,
+      "error_message": "AssertionError: Expected keys {'status', 'chromadb', 'llm_model', 'ollama'}, got {'llm_model', 'embed_model', 'chromadb', 'ollama', 'status'}\nassert {'chromadb', ...ma', 'status'} == {'chromadb', ...ma', 'status'}\n  \n  Extra items in the left set:\n  'embed_model'\n  \n  Full diff:\n    {\n        'chromadb',...\n  \n  ...Full output truncated (5 lines hidden), use '-vv' to show",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_endpoint_is_accessible_without_authentication",
+      "spec_file": "generated_tests/46e34c4e-97ba-4802-b60e-e5056affd85c/test_health_api.py",
+      "status": "passed",
+      "duration_ms": 338,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_health_check_handles_non_200_ollama_response_correctly",
+      "spec_file": "generated_tests/46e34c4e-97ba-4802-b60e-e5056affd85c/test_health_api.py",
+      "status": "failed",
+      "duration_ms": 333,
+      "error_message": "AssertionError: Expected ollama=False, got True\nassert True is False",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    }
+  ],
+  "heal_results": [],
+  "error": null
+}

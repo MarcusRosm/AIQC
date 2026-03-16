@@ -1,0 +1,397 @@
+{
+  "run_id": "9a6147de-fc60-45ee-9162-cc511214de84",
+  "label": "UI changes",
+  "started_at": "2026-03-15T14:27:35.600119",
+  "completed_at": "2026-03-15T14:28:53.823959",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "frontend/src/components/StatusIndicator.tsx",
+        "change_type": "modified",
+        "additions": 3,
+        "deletions": 2,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/frontend/src/components/StatusIndicator.tsx b/frontend/src/components/StatusIndicator.tsx\n--- a/frontend/src/components/StatusIndicator.tsx\n+++ b/frontend/src/components/StatusIndicator.tsx\n@@ -10,6 +10,7 @@\n export function StatusIndicator({ status }: { status: \"ok\" | \"degraded\" }) {\n   const isOk = status === \"ok\";\n   return (\n-    <div className={`status-pill ${isOk ? 'bg-green-500' : 'bg-red-500'}`}>\n-      {isOk ? \"All Systems Operational\" : \"Degraded Performance\"}\n+    <div className={`status-pill p-4 rounded shadow-md ${isOk ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`} data-testid=\"status-indicator\">\n+      <span className=\"font-bold text-lg\" data-testid=\"status-text\">{isOk ? \"All Systems Operational\" : \"Degraded Performance\"}</span>\n+      {!isOk && <button className=\"ml-4 px-2 py-1 bg-white text-red-500 rounded\" onClick={() => window.location.reload()}>Retry Connection</button>}\n     </div>\n   );\n }\n"
+      },
+      {
+        "path": "frontend/src/App.tsx",
+        "change_type": "modified",
+        "additions": 1,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx\n--- a/frontend/src/App.tsx\n+++ b/frontend/src/App.tsx\n@@ -25,2 +25,3 @@\n       <header>\n         <h1>QA Platform Dashboard</h1>\n+        <StatusIndicator status={healthStatus} />\n       </header>"
+      }
+    ],
+    "summary": "Changed 2 file(s): StatusIndicator.tsx, App.tsx",
+    "total_additions": 4,
+    "total_deletions": 2,
+    "affected_routes": [],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "bae0d458-588f-48a5-b8f7-6a368fdea008",
+        "title": "Verify Status Indicator visibility on main dashboard",
+        "category": "happy_path",
+        "description": "Ensure the StatusIndicator component is correctly rendered within the App layout.",
+        "preconditions": [
+          "Application is built and running"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/",
+            "assertion": "URL should be root"
+          },
+          {
+            "action": "check_visibility",
+            "selector": "page.get_by_role('status')",
+            "value": null,
+            "assertion": "Status indicator should be visible"
+          }
+        ],
+        "expected_result": "The StatusIndicator component is visible to the user upon landing on the App page.",
+        "tags": [
+          "UI",
+          "App.tsx",
+          "StatusIndicator.tsx"
+        ]
+      },
+      {
+        "id": "58432760-04bb-4e7b-8286-d3eb2a5a326f",
+        "title": "Confirm Status Indicator reflects 'Active' state",
+        "category": "happy_path",
+        "description": "Verify the indicator displays the correct text and visual cues for an active status.",
+        "preconditions": [
+          "System status is set to active"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/",
+            "assertion": null
+          },
+          {
+            "action": "verify_text",
+            "selector": "page.get_by_role('status')",
+            "value": "Active",
+            "assertion": "Text content should match 'Active'"
+          }
+        ],
+        "expected_result": "The indicator shows 'Active' text representing the current system state.",
+        "tags": [
+          "UI",
+          "Functional"
+        ]
+      },
+      {
+        "id": "5501f7d7-f1cc-44f2-a50f-549546f7d949",
+        "title": "Handle missing status data gracefully",
+        "category": "negative",
+        "description": "Check component behavior when the status data is null or undefined.",
+        "preconditions": [
+          "Mock API to return empty status object"
+        ],
+        "steps": [
+          {
+            "action": "route_mock",
+            "selector": "**/api/status",
+            "value": "{}",
+            "assertion": null
+          },
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/",
+            "assertion": null
+          },
+          {
+            "action": "verify_text",
+            "selector": "page.get_by_role('status')",
+            "value": "Unknown",
+            "assertion": "Should fallback to default 'Unknown' text"
+          }
+        ],
+        "expected_result": "The component displays a fallback state (e.g., 'Unknown') rather than crashing.",
+        "tags": [
+          "Robustness",
+          "Negative"
+        ]
+      },
+      {
+        "id": "52ae1a6d-2517-40c9-8b30-5d06fe8be91d",
+        "title": "Status Indicator accessibility compliance",
+        "category": "edge_case",
+        "description": "Verify that the status indicator uses appropriate ARIA roles for screen readers.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/",
+            "assertion": null
+          },
+          {
+            "action": "check_attribute",
+            "selector": "page.get_by_role('status')",
+            "value": "aria-live=polite",
+            "assertion": "Should have aria-live attribute for dynamic updates"
+          }
+        ],
+        "expected_result": "Screen readers can identify and announce status changes via ARIA attributes.",
+        "tags": [
+          "A11y",
+          "Radix-UI"
+        ]
+      },
+      {
+        "id": "093ec286-c9ab-4ddf-93b5-0a2d4d9f29f0",
+        "title": "Visual stability with long status labels",
+        "category": "edge_case",
+        "description": "Verify the layout remains intact when the status text is unusually long.",
+        "preconditions": [
+          "Mock API to return a very long status string"
+        ],
+        "steps": [
+          {
+            "action": "route_mock",
+            "selector": "**/api/status",
+            "value": "{\"status\": \"System Maintenance Mode Underway\"}",
+            "assertion": null
+          },
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/",
+            "assertion": null
+          }
+        ],
+        "expected_result": "The StatusIndicator container handles text overflow without breaking the App header layout.",
+        "tags": [
+          "UI",
+          "Layout"
+        ]
+      },
+      {
+        "id": "65bb2a5c-8776-4448-a0af-06e77d30962e",
+        "title": "Prevent XSS via Status Text injection",
+        "category": "security",
+        "description": "Ensure that status strings containing script tags are properly escaped and not executed.",
+        "preconditions": [
+          "Mock API to return malicious status string"
+        ],
+        "steps": [
+          {
+            "action": "route_mock",
+            "selector": "**/api/status",
+            "value": "{\"status\": \"<img src=x onerror=alert(1)>\"}",
+            "assertion": null
+          },
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/",
+            "assertion": null
+          },
+          {
+            "action": "check_no_alert",
+            "selector": null,
+            "value": null,
+            "assertion": "No alert should be triggered"
+          },
+          {
+            "action": "verify_text",
+            "selector": "page.get_by_text('<img src=x')",
+            "value": null,
+            "assertion": "HTML should be rendered as literal text"
+          }
+        ],
+        "expected_result": "The application escapes HTML entities and prevents script execution.",
+        "tags": [
+          "Security",
+          "XSS",
+          "OWASP"
+        ]
+      },
+      {
+        "id": "959016d7-23e4-4209-86e0-762351e836f6",
+        "title": "Responsive behavior of Status Indicator",
+        "category": "edge_case",
+        "description": "Verify the indicator is visible and correctly positioned on mobile viewports.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "set_viewport",
+            "selector": null,
+            "value": "{\"width\": 375, \"height\": 667}",
+            "assertion": null
+          },
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/",
+            "assertion": null
+          },
+          {
+            "action": "check_visibility",
+            "selector": "page.get_by_role('status')",
+            "value": null,
+            "assertion": "Indicator must be visible on mobile"
+          }
+        ],
+        "expected_result": "The StatusIndicator scales or adjusts appropriately for mobile screens without being hidden.",
+        "tags": [
+          "Mobile",
+          "Responsive"
+        ]
+      },
+      {
+        "id": "90c14c2c-956d-4a4d-b1f4-ab8aeb530399",
+        "title": "Real-time status update reflection",
+        "category": "happy_path",
+        "description": "Verify the UI updates automatically when the backend status changes without a page refresh.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/",
+            "assertion": null
+          },
+          {
+            "action": "verify_text",
+            "selector": "page.get_by_role('status')",
+            "value": "Online",
+            "assertion": null
+          },
+          {
+            "action": "trigger_websocket_update",
+            "selector": null,
+            "value": "Offline",
+            "assertion": null
+          },
+          {
+            "action": "verify_text",
+            "selector": "page.get_by_text('Offline')",
+            "value": null,
+            "assertion": "Status should update to Offline"
+          }
+        ],
+        "expected_result": "The StatusIndicator dynamically reflects state changes pushed from the server.",
+        "tags": [
+          "Real-time",
+          "Functional"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-15T14:27:54.252559",
+    "source_diff_summary": "Changed 2 file(s): StatusIndicator.tsx, App.tsx"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_status_indicator.py",
+      "content": "import os\nimport pytest\nfrom playwright.sync_api import Page, expect\n\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\n\n# SCENARIO_ID: bae0d458-588f-48a5-b8f7-6a368fdea008\ndef test_status_indicator_is_visible_on_main_dashboard(page: Page):\n    page.goto(f\"{BASE_URL}/\")\n    \n    status_indicator = page.get_by_role(\"status\")\n    expect(status_indicator).to_be_visible()\n\n# SCENARIO_ID: 58432760-04bb-4e7b-8286-d3eb2a5a326f\ndef test_status_indicator_reflects_active_state(page: Page):\n    page.goto(f\"{BASE_URL}/\")\n    \n    status_indicator = page.get_by_role(\"status\")\n    expect(status_indicator).to_have_text(\"Active\")\n\n# SCENARIO_ID: 5501f7d7-f1cc-44f2-a50f-549546f7d949\ndef test_status_indicator_falls_back_to_unknown_on_missing_data(page: Page):\n    # Mock API to return empty status object\n    page.route(\"**/api/status\", lambda route: route.fulfill(json={}))\n    \n    page.goto(f\"{BASE_URL}/\")\n    \n    status_indicator = page.get_by_role(\"status\")\n    expect(status_indicator).to_have_text(\"Unknown\")\n\n# SCENARIO_ID: 52ae1a6d-2517-40c9-8b30-5d06fe8be91d\ndef test_status_indicator_has_aria_live_polite_attribute(page: Page):\n    page.goto(f\"{BASE_URL}/\")\n    \n    status_indicator = page.get_by_role(\"status\")\n    expect(status_indicator).to_have_attribute(\"aria-live\", \"polite\")\n\n# SCENARIO_ID: 093ec286-c9ab-4ddf-93b5-0a2d4d9f29f0\ndef test_status_indicator_handles_long_status_labels(page: Page):\n    long_status = \"System Maintenance Mode Underway\"\n    page.route(\"**/api/status\", lambda route: route.fulfill(json={\"status\": long_status}))\n    \n    page.goto(f\"{BASE_URL}/\")\n    \n    status_indicator = page.get_by_role(\"status\")\n    expect(status_indicator).to_be_visible()\n    expect(status_indicator).to_have_text(long_status)\n\n# SCENARIO_ID: 65bb2a5c-8776-4448-a0af-06e77d30962e\ndef test_status_indicator_escapes_xss_injection_strings(page: Page):\n    malicious_payload = \"<img src=x onerror=alert(1)>\"\n    \n    # Register dialog handler to fail if an alert is triggered\n    page.on(\"dialog\", lambda dialog: pytest.fail(f\"XSS Vulnerability: Alert triggered with message: {dialog.message}\"))\n    \n    page.route(\"**/api/status\", lambda route: route.fulfill(json={\"status\": malicious_payload}))\n    \n    page.goto(f\"{BASE_URL}/\")\n    \n    # Verify that the payload is rendered as literal text and not as HTML\n    expect(page.get_by_text(\"<img src=x\")).to_be_visible()\n    expect(page.get_by_role(\"status\")).to_contain_text(malicious_payload)\n\n# SCENARIO_ID: 959016d7-23e4-4209-86e0-762351e836f6\ndef test_status_indicator_is_visible_on_mobile_viewport(page: Page):\n    page.set_viewport_size({\"width\": 375, \"height\": 667})\n    page.goto(f\"{BASE_URL}/\")\n    \n    status_indicator = page.get_by_role(\"status\")\n    expect(status_indicator).to_be_visible()\n\n# SCENARIO_ID: 90c14c2c-956d-4a4d-b1f4-ab8aeb530399\ndef test_status_indicator_updates_automatically_via_realtime_event(page: Page):\n    page.goto(f\"{BASE_URL}/\")\n    \n    status_indicator = page.get_by_role(\"status\")\n    # Assuming initial state is 'Online' as per scenario\n    expect(status_indicator).to_have_text(\"Online\")\n    \n    # Trigger a simulated WebSocket message/update via page evaluation\n    # Note: Implementation depends on how the app handles internal state updates\n    page.evaluate(\"\"\"\n        window.dispatchEvent(new MessageEvent('message', {\n            data: JSON.stringify({ type: 'STATUS_UPDATE', status: 'Offline' })\n        }));\n    \"\"\")\n    \n    expect(page.get_by_text(\"Offline\")).to_be_visible()\n",
+      "scenario_ids": [
+        "bae0d458-588f-48a5-b8f7-6a368fdea008",
+        "58432760-04bb-4e7b-8286-d3eb2a5a326f",
+        "5501f7d7-f1cc-44f2-a50f-549546f7d949",
+        "52ae1a6d-2517-40c9-8b30-5d06fe8be91d",
+        "093ec286-c9ab-4ddf-93b5-0a2d4d9f29f0",
+        "65bb2a5c-8776-4448-a0af-06e77d30962e",
+        "959016d7-23e4-4209-86e0-762351e836f6",
+        "90c14c2c-956d-4a4d-b1f4-ab8aeb530399"
+      ],
+      "generated_at": "2026-03-15T14:28:11.922491"
+    }
+  ],
+  "execution_results": [
+    {
+      "test_title": "test_status_indicator_is_visible_on_main_dashboard[chromium]",
+      "spec_file": "generated_tests/9a6147de-fc60-45ee-9162-cc511214de84/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 5030,
+      "error_message": "AssertionError: Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for get_by_role(\"status\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_status_indicator_reflects_active_state[chromium]",
+      "spec_file": "generated_tests/9a6147de-fc60-45ee-9162-cc511214de84/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 5005,
+      "error_message": "AssertionError: Locator expected to have text 'Active'\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_have_text\" with timeout 5000ms\n  - waiting for get_by_role(\"status\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_status_indicator_falls_back_to_unknown_on_missing_data[chromium]",
+      "spec_file": "generated_tests/9a6147de-fc60-45ee-9162-cc511214de84/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 5009,
+      "error_message": "AssertionError: Locator expected to have text 'Unknown'\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_have_text\" with timeout 5000ms\n  - waiting for get_by_role(\"status\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_status_indicator_has_aria_live_polite_attribute[chromium]",
+      "spec_file": "generated_tests/9a6147de-fc60-45ee-9162-cc511214de84/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 5006,
+      "error_message": "AssertionError: Locator expected to have attribute 'polite'\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_have_attribute\" with timeout 5000ms\n  - waiting for get_by_role(\"status\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_status_indicator_handles_long_status_labels[chromium]",
+      "spec_file": "generated_tests/9a6147de-fc60-45ee-9162-cc511214de84/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 5008,
+      "error_message": "AssertionError: Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for get_by_role(\"status\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_status_indicator_escapes_xss_injection_strings[chromium]",
+      "spec_file": "generated_tests/9a6147de-fc60-45ee-9162-cc511214de84/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 5007,
+      "error_message": "AssertionError: Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for get_by_text(\"<img src=x\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_status_indicator_is_visible_on_mobile_viewport[chromium]",
+      "spec_file": "generated_tests/9a6147de-fc60-45ee-9162-cc511214de84/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 5009,
+      "error_message": "AssertionError: Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for get_by_role(\"status\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_status_indicator_updates_automatically_via_realtime_event[chromium]",
+      "spec_file": "generated_tests/9a6147de-fc60-45ee-9162-cc511214de84/test_status_indicator.py",
+      "status": "failed",
+      "duration_ms": 5006,
+      "error_message": "AssertionError: Locator expected to have text 'Online'\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_have_text\" with timeout 5000ms\n  - waiting for get_by_role(\"status\")",
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    }
+  ],
+  "heal_results": [],
+  "error": null
+}

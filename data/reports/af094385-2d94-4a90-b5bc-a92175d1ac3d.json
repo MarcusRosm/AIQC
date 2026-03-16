@@ -1,0 +1,343 @@
+{
+  "run_id": "af094385-2d94-4a90-b5bc-a92175d1ac3d",
+  "label": "Pipeline test",
+  "started_at": "2026-03-14T23:09:50.859373",
+  "completed_at": "2026-03-14T23:10:32.817797",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "74715378-197b-4acd-a134-1e2abb453a80",
+        "title": "Successfully trigger a new pipeline run via API",
+        "category": "happy_path",
+        "description": "Verify that POST /api/pipeline/run accepts a valid PipelineRunRequest and returns a 202 status with a run_id.",
+        "preconditions": [
+          "API server is running",
+          "Valid PipelineRunRequest schema is known"
+        ],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "response.status == 202"
+          },
+          {
+            "action": "check_json_property",
+            "selector": null,
+            "value": "run_id",
+            "assertion": "run_id is not null"
+          }
+        ],
+        "expected_result": "API returns 202 Accepted and a unique run_id is generated for the background task.",
+        "tags": [
+          "api",
+          "pipeline",
+          "smoke"
+        ]
+      },
+      {
+        "id": "277d4c9d-8893-49ad-8dfd-f7cd713615ba",
+        "title": "Monitor pipeline status via SSE stream",
+        "category": "happy_path",
+        "description": "Verify that the SSE endpoint /api/pipeline/status/{run_id} streams events for a newly created run.",
+        "preconditions": [
+          "A pipeline run has been initiated and run_id is obtained"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/pipeline/status/{run_id}",
+            "assertion": "response.headers['content-type'] == 'text/event-stream'"
+          },
+          {
+            "action": "wait_for_event",
+            "selector": null,
+            "value": "PipelineStage",
+            "assertion": "event.data contains status information"
+          }
+        ],
+        "expected_result": "The client receives a stream of events tracking the progress of the pipeline run.",
+        "tags": [
+          "api",
+          "sse",
+          "pipeline"
+        ]
+      },
+      {
+        "id": "d24025cc-4642-4e66-a74b-21e14e2dfb9b",
+        "title": "Verify completed run appears in reports list",
+        "category": "happy_path",
+        "description": "Verify that after a run completes, it is persisted and visible in the reports summary.",
+        "preconditions": [
+          "A pipeline run has completed (SUCCESS or FAILED)"
+        ],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "response.status == 200"
+          },
+          {
+            "action": "search_json_list",
+            "selector": null,
+            "value": "run_id",
+            "assertion": "list contains the recently completed run_id"
+          }
+        ],
+        "expected_result": "The report directory is updated and the new report is included in the list of all runs.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      },
+      {
+        "id": "42c5b691-3763-497d-a724-31c39ce1f12a",
+        "title": "Trigger pipeline with invalid request body",
+        "category": "negative",
+        "description": "Verify that POST /api/pipeline/run returns 422 Unprocessable Entity when the request body is malformed or missing required fields.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "response.status == 422"
+          }
+        ],
+        "expected_result": "The API rejects the request with a validation error message.",
+        "tags": [
+          "api",
+          "validation"
+        ]
+      },
+      {
+        "id": "d42bbf70-47c3-43cf-a0ae-b652a6d27e41",
+        "title": "Access status for non-existent run_id",
+        "category": "negative",
+        "description": "Verify the behavior of the SSE endpoint when an invalid or non-existent run_id is provided.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/pipeline/status/invalid-uuid-123",
+            "assertion": "response.status == 404"
+          }
+        ],
+        "expected_result": "The API returns a 404 Not Found error for non-existent pipeline runs.",
+        "tags": [
+          "api",
+          "sse",
+          "error-handling"
+        ]
+      },
+      {
+        "id": "ecd73f8b-eccc-4b65-8074-297881c06c90",
+        "title": "Concurrent pipeline run requests",
+        "category": "edge_case",
+        "description": "Ensure the system can handle multiple concurrent POST requests to /api/pipeline/run without race conditions in the orchestrator.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "parallel_post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "all responses return 202 status"
+          }
+        ],
+        "expected_result": "Multiple unique run_ids are generated and background tasks are queued correctly.",
+        "tags": [
+          "api",
+          "concurrency",
+          "performance"
+        ]
+      },
+      {
+        "id": "53b8f51c-d9bb-45ea-a573-e23f27e6fbda",
+        "title": "Persistence of report on unexpected orchestrator error",
+        "category": "edge_case",
+        "description": "Verify that even if an unexpected exception occurs in the pipeline, the status is set to FAILED and the report is saved.",
+        "preconditions": [
+          "A pipeline run is triggered that is designed to raise an unhandled Exception"
+        ],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "status 202 received"
+          },
+          {
+            "action": "wait",
+            "selector": null,
+            "value": "5000",
+            "assertion": null
+          },
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/reports/{run_id}",
+            "assertion": "run.status == 'FAILED'"
+          }
+        ],
+        "expected_result": "The Orchestrator's try/except block catches the error, updates the status, and writes the JSON report.",
+        "tags": [
+          "reliability",
+          "orchestrator"
+        ]
+      },
+      {
+        "id": "b6bbe5b3-482f-4319-a0e2-fca613755a1c",
+        "title": "Injection probe in pipeline request fields",
+        "category": "security",
+        "description": "Check if the API handles XSS or script injection attempts in the PipelineRunRequest fields.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "post",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "response.status == 202 or 400"
+          },
+          {
+            "action": "navigate",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "Content is sanitized or properly escaped in JSON response"
+          }
+        ],
+        "expected_result": "The application does not execute injected scripts and persists data safely.",
+        "tags": [
+          "security",
+          "injection"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T23:10:06.605799",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_pipeline_api.py",
+      "content": "import os\nimport pytest\nfrom playwright.sync_api import Page, expect\n\n# Configuration\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\n\n# SCENARIO_ID: 74715378-197b-4acd-a134-1e2abb453a80\ndef test_successfully_trigger_new_pipeline_run_via_api(page: Page):\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model not in context\")\n\n# SCENARIO_ID: 277d4c9d-8893-49ad-8dfd-f7cd713615ba\ndef test_monitor_pipeline_status_via_sse_stream(page: Page):\n    # This test depends on a valid run_id from the trigger scenario\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model not in context\")\n\n# SCENARIO_ID: d24025cc-4642-4e66-a74b-21e14e2dfb9b\ndef test_verify_completed_run_appears_in_reports_list(page: Page):\n    reports_url = f\"{BASE_URL}/api/reports\"\n    \n    # Use request API to verify the data structure\n    response = page.request.get(reports_url)\n    expect(response).to_be_ok()\n    \n    # Use navigation to verify the endpoint is accessible\n    page.goto(reports_url)\n    # JSON is typically rendered in a <pre> tag or as raw text in the body\n    # We expect at least an empty list or a list of report objects\n    body_text = page.locator(\"body\")\n    expect(body_text).to_contain_text(\"[\")\n    expect(body_text).to_contain_text(\"]\")\n\n# SCENARIO_ID: 42c5b691-3763-497d-a724-31c39ce1f12a\ndef test_trigger_pipeline_with_invalid_request_body(page: Page):\n    run_url = f\"{BASE_URL}/api/pipeline/run\"\n    \n    # Sending an empty object to trigger validation error (422 Unprocessable Entity)\n    response = page.request.post(run_url, data={})\n    \n    assert response.status == 422\n    error_detail = response.json()\n    assert \"detail\" in error_detail\n\n# SCENARIO_ID: d42bbf70-47c3-43cf-a0ae-b652a6d27e41\ndef test_access_status_for_non_existent_run_id(page: Page):\n    invalid_run_id = \"invalid-uuid-123\"\n    status_url = f\"{BASE_URL}/api/pipeline/status/{invalid_run_id}\"\n    \n    response = page.goto(status_url)\n    \n    # response might be None if navigation fails, but for 404 it should return the response\n    assert response is not None\n    assert response.status == 404\n\n# SCENARIO_ID: ecd73f8b-eccc-4b65-8074-297881c06c90\ndef test_concurrent_pipeline_run_requests(page: Page):\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model not in context\")\n\n# SCENARIO_ID: 53b8f51c-d9bb-45ea-a573-e23f27e6fbda\ndef test_persistence_of_report_on_unexpected_orchestrator_error(page: Page):\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model not in context\")\n\n# SCENARIO_ID: b6bbe5b3-482f-4319-a0e2-fca613755a1c\ndef test_injection_probe_in_pipeline_request_fields(page: Page):\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model not in context\")\n",
+      "scenario_ids": [
+        "74715378-197b-4acd-a134-1e2abb453a80",
+        "277d4c9d-8893-49ad-8dfd-f7cd713615ba",
+        "d24025cc-4642-4e66-a74b-21e14e2dfb9b",
+        "42c5b691-3763-497d-a724-31c39ce1f12a",
+        "d42bbf70-47c3-43cf-a0ae-b652a6d27e41",
+        "ecd73f8b-eccc-4b65-8074-297881c06c90",
+        "53b8f51c-d9bb-45ea-a573-e23f27e6fbda",
+        "b6bbe5b3-482f-4319-a0e2-fca613755a1c"
+      ],
+      "generated_at": "2026-03-14T23:10:30.479699"
+    }
+  ],
+  "execution_results": [
+    {
+      "test_title": "test_successfully_trigger_new_pipeline_run_via_api[chromium]",
+      "spec_file": "generated_tests/af094385-2d94-4a90-b5bc-a92175d1ac3d/test_pipeline_api.py",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_monitor_pipeline_status_via_sse_stream[chromium]",
+      "spec_file": "generated_tests/af094385-2d94-4a90-b5bc-a92175d1ac3d/test_pipeline_api.py",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_verify_completed_run_appears_in_reports_list[chromium]",
+      "spec_file": "generated_tests/af094385-2d94-4a90-b5bc-a92175d1ac3d/test_pipeline_api.py",
+      "status": "passed",
+      "duration_ms": 417,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_trigger_pipeline_with_invalid_request_body[chromium]",
+      "spec_file": "generated_tests/af094385-2d94-4a90-b5bc-a92175d1ac3d/test_pipeline_api.py",
+      "status": "passed",
+      "duration_ms": 3,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_access_status_for_non_existent_run_id[chromium]",
+      "spec_file": "generated_tests/af094385-2d94-4a90-b5bc-a92175d1ac3d/test_pipeline_api.py",
+      "status": "passed",
+      "duration_ms": 4,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_concurrent_pipeline_run_requests[chromium]",
+      "spec_file": "generated_tests/af094385-2d94-4a90-b5bc-a92175d1ac3d/test_pipeline_api.py",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_persistence_of_report_on_unexpected_orchestrator_error[chromium]",
+      "spec_file": "generated_tests/af094385-2d94-4a90-b5bc-a92175d1ac3d/test_pipeline_api.py",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    },
+    {
+      "test_title": "test_injection_probe_in_pipeline_request_fields[chromium]",
+      "spec_file": "generated_tests/af094385-2d94-4a90-b5bc-a92175d1ac3d/test_pipeline_api.py",
+      "status": "skipped",
+      "duration_ms": 0,
+      "error_message": null,
+      "failing_selector": null,
+      "dom_snapshot": null,
+      "screenshot_path": null
+    }
+  ],
+  "heal_results": [],
+  "error": null
+}

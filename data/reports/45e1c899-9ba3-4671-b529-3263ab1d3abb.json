@@ -1,0 +1,250 @@
+{
+  "run_id": "45e1c899-9ba3-4671-b529-3263ab1d3abb",
+  "label": "Test Pipeline",
+  "started_at": "2026-03-14T21:26:27.321751",
+  "completed_at": "2026-03-14T21:31:41.651720",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "d8e5c776-4a60-4829-8f5e-b438cdc9f447",
+        "title": "Valid Pipeline Run Request",
+        "category": "happy_path",
+        "description": "Send a POST request to /api/pipeline/run with a valid PipelineRunRequest body, as defined in the changed pipeline.py file.",
+        "preconditions": [
+          "API server is running",
+          "PipelineRunRequest schema is properly defined"
+        ],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run with JSON: {\"label\": \"test-run\", \"parameters\": {}}",
+            "assertion": "status is 202"
+          },
+          {
+            "action": "assert_response",
+            "selector": null,
+            "value": "response JSON contains 'run_id' and 'status' keys with values",
+            "assertion": "response.run_id is a non-empty string, response.status is 'queued'"
+          }
+        ],
+        "expected_result": "Response status 202 Accepted with JSON containing a unique run_id and status 'queued'.",
+        "tags": [
+          "api",
+          "pipeline.py"
+        ]
+      },
+      {
+        "id": "9293f9bd-95d7-4af6-a7fe-a67c7ee4b989",
+        "title": "Invalid JSON in Request Body",
+        "category": "negative",
+        "description": "Send a POST request with malformed JSON to /api/pipeline/run to test validation added in pipeline.py changes.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run with body: 'invalid json string'",
+            "assertion": "status is 422 or 400"
+          }
+        ],
+        "expected_result": "FastAPI returns a validation error, typically 422 Unprocessable Entity, due to invalid JSON.",
+        "tags": [
+          "api",
+          "validation",
+          "pipeline.py"
+        ]
+      },
+      {
+        "id": "78f64315-daca-459b-9451-d58b78c499df",
+        "title": "Missing Required Field in PipelineRunRequest",
+        "category": "negative",
+        "description": "Assume PipelineRunRequest has required fields; send a request without a mandatory field like 'label' to /api/pipeline/run.",
+        "preconditions": [
+          "API server is running",
+          "PipelineRunRequest requires 'label' field"
+        ],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run with JSON: {\"parameters\": {}}",
+            "assertion": "status is 422"
+          }
+        ],
+        "expected_result": "Validation error response indicating missing required field.",
+        "tags": [
+          "api",
+          "validation",
+          "pipeline.py"
+        ]
+      },
+      {
+        "id": "d58a1f52-2496-40e6-a0b6-e1adfb489347",
+        "title": "Empty Request Body",
+        "category": "edge_case",
+        "description": "Send a POST request with an empty body to /api/pipeline/run to test edge case handling in the modified route.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run with empty body",
+            "assertion": "status is 422"
+          }
+        ],
+        "expected_result": "Error response due to missing or invalid request body.",
+        "tags": [
+          "api",
+          "edge_case",
+          "pipeline.py"
+        ]
+      },
+      {
+        "id": "e73b6211-435d-4bc9-a537-228698c0f810",
+        "title": "Concurrent Pipeline Run Requests",
+        "category": "edge_case",
+        "description": "Start multiple pipeline runs simultaneously to /api/pipeline/run to test for race conditions or resource limits introduced by changes.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "POST_concurrent",
+            "selector": null,
+            "value": "Send 5 concurrent POST requests to /api/pipeline/run with valid JSON",
+            "assertion": "all responses have status 202"
+          },
+          {
+            "action": "assert_unique",
+            "selector": null,
+            "value": "Check that all returned run_id values are unique",
+            "assertion": "no duplicate run_ids"
+          }
+        ],
+        "expected_result": "All requests are accepted with unique run_ids and status 'queued'.",
+        "tags": [
+          "api",
+          "concurrency",
+          "pipeline.py"
+        ]
+      },
+      {
+        "id": "115b89bd-e2e1-447c-911e-039db4a55d56",
+        "title": "SQL Injection Probe in Request Field",
+        "category": "security",
+        "description": "Attempt SQL injection in request fields (e.g., label) sent to /api/pipeline/run to test for vulnerabilities in the changed code.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run with JSON: {\"label\": \"test' OR '1'='1\", \"parameters\": {}}",
+            "assertion": "status is 202 or 422, but no SQL errors"
+          }
+        ],
+        "expected_result": "Request is handled without database errors; either accepted or validation fails safely.",
+        "tags": [
+          "security",
+          "sql_injection",
+          "pipeline.py"
+        ]
+      },
+      {
+        "id": "10779550-4a70-4504-a928-6a59479cfda1",
+        "title": "XSS Probe in Request Field",
+        "category": "security",
+        "description": "Inject JavaScript payload in request fields to /api/pipeline/run to test for XSS if data is logged or displayed later.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run with JSON: {\"label\": \"<script>alert('xss')</script>\", \"parameters\": {}}",
+            "assertion": "status is 202 or 422, no script execution in response"
+          }
+        ],
+        "expected_result": "Request is processed without executing scripts; data is sanitized or handled safely.",
+        "tags": [
+          "security",
+          "xss",
+          "pipeline.py"
+        ]
+      },
+      {
+        "id": "85583956-4c35-46cd-b8d5-32ed0c65217f",
+        "title": "Incorrect HTTP Method for /run Endpoint",
+        "category": "negative",
+        "description": "Send a GET request instead of POST to /api/pipeline/run to test method handling in the updated pipeline.py.",
+        "preconditions": [
+          "API server is running"
+        ],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "status is 405"
+          }
+        ],
+        "expected_result": "Method Not Allowed error (405) since only POST is supported.",
+        "tags": [
+          "api",
+          "negative",
+          "pipeline.py"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T21:30:01.296471",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_generated.py",
+      "content": "import os\nimport pytest\nfrom playwright.sync_api import Page, expect\n\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\nFORM_PAGE_URL = BASE_URL  # Assuming the pipeline run form is at the base URL\n\n# SCENARIO_ID: d8e5c776-4a60-4829-8f5e-b438cdc9f447\ndef test_valid_pipeline_run_request_shows_success_with_run_id_and_queued_status(page: Page):\n    page.goto(FORM_PAGE_URL)\n    label_input = page.get_by_label(\"Label\")\n    parameters_input = page.get_by_label(\"Parameters\")\n    submit_button = page.get_by_role(\"button\", name=\"Run Pipeline\")\n    \n    label_input.fill(\"test-run\")\n    parameters_input.fill(\"{}\")\n    submit_button.click()\n    \n    success_message = page.get_by_role(\"alert\")\n    expect(success_message).to_contain_text(\"run_id\")\n    expect(success_message).to_contain_text(\"queued\")\n\n# SCENARIO_ID: 9293f9bd-95d7-4af6-a7fe-a67c7ee4b989\ndef test_invalid_json_in_request_body_shows_validation_error(page: Page):\n    page.goto(FORM_PAGE_URL)\n    parameters_input = page.get_by_label(\"Parameters\")\n    submit_button = page.get_by_role(\"button\", name=\"Run Pipeline\")\n    \n    parameters_input.fill(\"invalid json string\")\n    submit_button.click()\n    \n    error_message = page.get_by_role(\"alert\")\n    expect(error_message).to_contain_text(\"Invalid JSON\")\n\n# SCENARIO_ID: 78f64315-daca-459b-9451-d58b78c499df\ndef test_missing_required_field_label_shows_validation_error(page: Page):\n    page.goto(FORM_PAGE_URL)\n    parameters_input = page.get_by_label(\"Parameters\")\n    submit_button = page.get_by_role(\"button\", name=\"Run Pipeline\")\n    \n    parameters_input.fill(\"{}\")\n    submit_button.click()\n    \n    error_message = page.get_by_role(\"alert\")\n    expect(error_message).to_contain_text(\"label\")\n    expect(error_message).to_contain_text(\"required\")\n\n# SCENARIO_ID: d58a1f52-2496-40e6-a0b6-e1adfb489347\ndef test_empty_request_body_shows_validation_error(page: Page):\n    page.goto(FORM_PAGE_URL)\n    submit_button = page.get_by_role(\"button\", name=\"Run Pipeline\")\n    \n    submit_button.click()\n    \n    error_message = page.get_by_role(\"alert\")\n    expect(error_message).to_contain_text(\"required\")\n\n# SCENARIO_ID: e73b6211-435d-4bc9-a537-228698c0f810\ndef test_concurrent_pipeline_run_requests_yield_unique_run_ids(page: Page):\n    page.goto(FORM_PAGE_URL)\n    label_input = page.get_by_label(\"Label\")\n    parameters_input = page.get_by_label(\"Parameters\")\n    submit_button = page.get_by_role(\"button\", name=\"Run Pipeline\")\n    \n    run_ids = []\n    for i in range(5):\n        label_input.fill(f\"test-run-{i}\")\n        parameters_input.fill(\"{}\")\n        submit_button.click()\n        success_message = page.get_by_role(\"alert\")\n        expect(success_message).to_contain_text(\"run_id\")\n        # Extract run_id from message - assuming it's displayed in a span or similar\n        run_id_element = page.get_by_text(/run_id: \\S+/)\n        run_id_text = run_id_element.text_content()\n        run_id = run_id_text.split(\": \")[1]\n        run_ids.append(run_id)\n        page.reload()  # Reset for next submission\n    \n    assert len(run_ids) == len(set(run_ids)), \"Duplicate run_ids found\"\n\n# SCENARIO_ID: 115b89bd-e2e1-447c-911e-039db4a55d56\ndef test_sql_injection_probe_in_label_field_handled_safely(page: Page):\n    page.goto(FORM_PAGE_URL)\n    label_input = page.get_by_label(\"Label\")\n    parameters_input = page.get_by_label(\"Parameters\")\n    submit_button = page.get_by_role(\"button\", name=\"Run Pipeline\")\n    \n    label_input.fill(\"test' OR '1'='1\")\n    parameters_input.fill(\"{}\")\n    submit_button.click()\n    \n    # Expect either success or validation error, but no SQL error message\n    response_element = page.get_by_role(\"alert\")\n    expect(response_element).not_to_contain_text(\"SQL\")\n    expect(response_element).not_to_contain_text(\"database\")\n\n# SCENARIO_ID: 10779550-4a70-4504-a928-6a59479cfda1\ndef test_xss_probe_in_label_field_handled_safely(page: Page):\n    page.goto(FORM_PAGE_URL)\n    label_input = page.get_by_label(\"Label\")\n    parameters_input = page.get_by_label(\"Parameters\")\n    submit_button = page.get_by_role(\"button\", name=\"Run Pipeline\")\n    \n    label_input.fill(\"<script>alert('xss')</script>\")\n    parameters_input.fill(\"{}\")\n    submit_button.click()\n    \n    # Check that the label is displayed as plain text, not executed\n    displayed_label = page.get_by_text(\"<script>alert('xss')</script>\")\n    expect(displayed_label).to_be_visible()\n    # Ensure no alert popup by checking page stability\n    expect(page).not_to_have_url(containing=\"alert\")\n\n# SCENARIO_ID: 85583956-4c35-46cd-b8d5-32ed0c65217f\ndef test_get_request_to_pipeline_run_endpoint_shows_method_not_allowed_error(page: Page):\n    url = f\"{BASE_URL}/api/pipeline/run\"\n    page.goto(url)\n    \n    error_message = page.get_by_text(\"405\")\n    expect(error_message).to_be_visible()\n    expect(page.get_by_text(\"Method Not Allowed\")).to_be_visible()\n",
+      "scenario_ids": [
+        "d8e5c776-4a60-4829-8f5e-b438cdc9f447",
+        "9293f9bd-95d7-4af6-a7fe-a67c7ee4b989",
+        "78f64315-daca-459b-9451-d58b78c499df",
+        "d58a1f52-2496-40e6-a0b6-e1adfb489347",
+        "e73b6211-435d-4bc9-a537-228698c0f810",
+        "115b89bd-e2e1-447c-911e-039db4a55d56",
+        "10779550-4a70-4504-a928-6a59479cfda1",
+        "85583956-4c35-46cd-b8d5-32ed0c65217f"
+      ],
+      "generated_at": "2026-03-14T21:31:41.246679"
+    }
+  ],
+  "execution_results": [],
+  "heal_results": [],
+  "error": null
+}

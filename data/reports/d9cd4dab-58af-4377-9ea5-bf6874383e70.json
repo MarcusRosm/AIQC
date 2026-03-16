@@ -1,0 +1,286 @@
+{
+  "run_id": "d9cd4dab-58af-4377-9ea5-bf6874383e70",
+  "label": "Pipeline test",
+  "started_at": "2026-03-14T23:28:15.534959",
+  "completed_at": "2026-03-14T23:29:02.038257",
+  "status": "completed",
+  "diff_result": {
+    "files": [
+      {
+        "path": "app/api/routes/pipeline.py",
+        "change_type": "modified",
+        "additions": 4,
+        "deletions": 0,
+        "functions_touched": [],
+        "classes_touched": [],
+        "raw_diff": "diff --git a/app/api/routes/pipeline.py b/app/api/routes/pipeline.py\nindex a1b2c3d..e5f6g7h 100644\n--- a/app/api/routes/pipeline.py\n+++ b/app/api/routes/pipeline.py\n@@ -23,10 +23,14 @@\n \n @router.post(\"/run\", status_code=202)\n async def start_run(\n     body: PipelineRunRequest,\n     background_tasks: BackgroundTasks,\n ) -> dict:\n     \"\"\"\n     Start a new pipeline run in the background.\n     \"\"\"\n+    # Input Validation Guard\n+    if not body.diff_text or len(body.diff_text.strip()) < 10:\n+        raise HTTPException(status_code=400, detail=\"diff_text must be at least 10 characters long.\")\n+        \n     orchestrator = PipelineOrchestrator()\n     # A temporary orchestration is needed to get the run_id before starting"
+      }
+    ],
+    "summary": "Changed 1 file(s): pipeline.py",
+    "total_additions": 4,
+    "total_deletions": 0,
+    "affected_routes": [
+      "/run"
+    ],
+    "affected_components": []
+  },
+  "scenario_list": {
+    "scenarios": [
+      {
+        "id": "bff83136-e7a3-411e-8ed0-2208eb7e8c60",
+        "title": "Trigger New Pipeline Run and Monitor SSE Status Updates",
+        "category": "happy_path",
+        "description": "Verify that a user can successfully start a pipeline run and receive real-time updates via the SSE stream.",
+        "preconditions": [
+          "API server is running and accessible"
+        ],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Response status is 202 and contains a 'run_id'"
+          },
+          {
+            "action": "Listen to SSE",
+            "selector": null,
+            "value": "/api/pipeline/status/{run_id}",
+            "assertion": "Receive 'PipelineEvents' with 'event' and 'data' fields"
+          }
+        ],
+        "expected_result": "Pipeline starts execution and status events are streamed to the client until completion.",
+        "tags": [
+          "api",
+          "sse",
+          "pipeline"
+        ]
+      },
+      {
+        "id": "fc735f2b-e6a4-48c6-8bdf-d76af9e40907",
+        "title": "Retrieve List of Completed Pipeline Reports",
+        "category": "happy_path",
+        "description": "Verify that completed runs are correctly persisted and listed in the reports summary.",
+        "preconditions": [
+          "At least one pipeline run has been completed and saved to the reports directory"
+        ],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports",
+            "assertion": "Response status is 200 and returns a list of report summaries"
+          }
+        ],
+        "expected_result": "The list contains the most recent run details, sorted newest first.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      },
+      {
+        "id": "b0c155d2-4621-4c93-bae8-8e98c5406c21",
+        "title": "View Full Details of a Specific Pipeline Report",
+        "category": "happy_path",
+        "description": "Verify that the full JSON detail of a specific run can be retrieved using its ID.",
+        "preconditions": [
+          "A valid run_id exists in the reports directory"
+        ],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports/{run_id}",
+            "assertion": "Response status is 200 and body matches the PipelineRun schema"
+          }
+        ],
+        "expected_result": "Full pipeline execution details including all stages and metadata are returned.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      },
+      {
+        "id": "1cf96fe3-00c2-4201-a384-de528ef1d36f",
+        "title": "Delete an Existing Pipeline Report",
+        "category": "happy_path",
+        "description": "Verify that a user can delete a report file from the system.",
+        "preconditions": [
+          "A report file exists for the given run_id"
+        ],
+        "steps": [
+          {
+            "action": "DELETE",
+            "selector": null,
+            "value": "/api/reports/{run_id}",
+            "assertion": "Response status is 204"
+          },
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports/{run_id}",
+            "assertion": "Response status is 404"
+          }
+        ],
+        "expected_result": "The report file is successfully removed from the disk and no longer appears in the list.",
+        "tags": [
+          "api",
+          "cleanup"
+        ]
+      },
+      {
+        "id": "e8e5ad3d-2d44-4800-ba7c-ad80ed2924a0",
+        "title": "Request Status for Non-Existent Run ID",
+        "category": "negative",
+        "description": "Verify that requesting status for an invalid or completed run ID returns a 404 error.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/pipeline/status/invalid-id-123",
+            "assertion": "Response status is 404 and detail contains 'Run not found or already completed'"
+          }
+        ],
+        "expected_result": "API handles the missing bus connection gracefully by returning 404.",
+        "tags": [
+          "api",
+          "error-handling"
+        ]
+      },
+      {
+        "id": "43508f90-4a68-4504-bdd8-0f8db29428f7",
+        "title": "Submit Pipeline Run with Malformed Payload",
+        "category": "negative",
+        "description": "Verify that the /run endpoint validates the incoming PipelineRunRequest schema.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "POST",
+            "selector": null,
+            "value": "/api/pipeline/run",
+            "assertion": "Response status is 422 Unprocessable Entity"
+          }
+        ],
+        "expected_result": "FastAPI validation error prevents invalid background tasks from starting.",
+        "tags": [
+          "api",
+          "validation"
+        ]
+      },
+      {
+        "id": "035f06c2-06e4-47bf-bcbb-d0d304135908",
+        "title": "Retrieve Missing Report Detail",
+        "category": "negative",
+        "description": "Verify that requesting details for a deleted or non-existent report returns 404.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports/does-not-exist",
+            "assertion": "Response status is 404"
+          }
+        ],
+        "expected_result": "The system correctly identifies that the JSON file is missing from the reports directory.",
+        "tags": [
+          "api",
+          "reports"
+        ]
+      },
+      {
+        "id": "fd35f8d3-9a0f-4419-822c-6da2d2ee3eaf",
+        "title": "Handle Corrupted Report JSON File",
+        "category": "edge_case",
+        "description": "Verify that the API handles cases where a report file on disk is not valid JSON.",
+        "preconditions": [
+          "A file exists in the reports directory but contains invalid data"
+        ],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports/{corrupted_id}",
+            "assertion": "Response status is 500 and detail contains 'Failed to parse report'"
+          }
+        ],
+        "expected_result": "The internal exception is caught and returned as a 500 status error.",
+        "tags": [
+          "api",
+          "edge-case"
+        ]
+      },
+      {
+        "id": "0a2eb61e-c5b2-4415-9ed5-5259ad13ce12",
+        "title": "SSE Connection Persistence and Reconnection",
+        "category": "edge_case",
+        "description": "Verify that the SSE generator handles multiple concurrent subscribers or reconnections.",
+        "preconditions": [
+          "A pipeline run is currently active"
+        ],
+        "steps": [
+          {
+            "action": "Connect SSE",
+            "selector": null,
+            "value": "/api/pipeline/status/{run_id}",
+            "assertion": "Events start streaming"
+          },
+          {
+            "action": "Connect second client to SSE",
+            "selector": null,
+            "value": "/api/pipeline/status/{run_id}",
+            "assertion": "Both clients receive identical event streams"
+          }
+        ],
+        "expected_result": "Multiple clients can monitor the same background run status simultaneously.",
+        "tags": [
+          "sse",
+          "concurrency"
+        ]
+      },
+      {
+        "id": "230c9a5b-553f-49bb-8513-9e0ecaeea1e7",
+        "title": "Path Traversal Probe on Report Retrieval",
+        "category": "security",
+        "description": "Verify that the run_id parameter is not susceptible to path traversal attacks.",
+        "preconditions": [],
+        "steps": [
+          {
+            "action": "GET",
+            "selector": null,
+            "value": "/api/reports/../../etc/passwd",
+            "assertion": "Response status is 404 or 422"
+          }
+        ],
+        "expected_result": "The application prevents access to files outside the designated REPORTS_DIR.",
+        "tags": [
+          "security",
+          "owasp"
+        ]
+      }
+    ],
+    "generated_at": "2026-03-14T23:28:33.566699",
+    "source_diff_summary": "Changed 1 file(s): pipeline.py"
+  },
+  "generated_specs": [
+    {
+      "filename": "test_pipeline_reports.py",
+      "content": "import os\nimport pytest\nfrom playwright.sync_api import Page, expect\n\nBASE_URL = os.environ.get(\"BASE_URL\", \"http://localhost:8000\")\n\n# SCENARIO_ID: bff83136-e7a3-411e-8ed0-2208eb7e8c60\ndef test_trigger_new_pipeline_run_and_monitor_sse_status_updates(page: Page):\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model 'PipelineRunRequest' not in context\")\n\n# SCENARIO_ID: fc735f2b-e6a4-48c6-8bdf-d76af9e40907\ndef test_retrieve_list_of_completed_pipeline_reports(page: Page):\n    page.goto(BASE_URL)\n    \n    response = page.request.get(f\"{BASE_URL}/api/reports\")\n    expect(response).to_be_ok()\n    \n    reports = response.json()\n    assert isinstance(reports, list), \"Expected a list of report summaries\"\n    # If reports exist, verify structure based on snippet 2 (summaries)\n    if len(reports) > 0:\n        assert \"run_id\" in reports[0] or reports[0], \"Report summary should not be empty\"\n\n# SCENARIO_ID: b0c155d2-4621-4c93-bae8-8e98c5406c21\ndef test_view_full_details_of_specific_pipeline_report(page: Page):\n    page.goto(BASE_URL)\n    \n    # Precondition: Get an existing run_id from the list\n    list_res = page.request.get(f\"{BASE_URL}/api/reports\")\n    reports = list_res.json()\n    if not reports:\n        pytest.skip(\"No reports available to retrieve details\")\n    \n    # Assuming 'run_id' is a key in the summary as hinted in route params\n    target_run_id = reports[0].get(\"run_id\")\n    if not target_run_id:\n        pytest.skip(\"Could not determine run_id from report summary\")\n\n    detail_res = page.request.get(f\"{BASE_URL}/api/reports/{target_run_id}\")\n    expect(detail_res).to_be_ok()\n    \n    detail_data = detail_res.json()\n    # PipelineRun schema expected as per snippet 3\n    assert \"run_id\" in detail_data or \"stages\" in detail_data\n\n# SCENARIO_ID: 1cf96fe3-00c2-4201-a384-de528ef1d36f\ndef test_delete_existing_pipeline_report(page: Page):\n    page.goto(BASE_URL)\n    \n    # Precondition: Identify a report to delete\n    list_res = page.request.get(f\"{BASE_URL}/api/reports\")\n    reports = list_res.json()\n    if not reports:\n        pytest.skip(\"No reports available to delete\")\n    \n    target_run_id = reports[0].get(\"run_id\")\n    \n    # Step 1: DELETE\n    delete_res = page.request.delete(f\"{BASE_URL}/api/reports/{target_run_id}\")\n    assert delete_res.status == 204\n    \n    # Step 2: Verify GET returns 404\n    get_res = page.request.get(f\"{BASE_URL}/api/reports/{target_run_id}\")\n    assert get_res.status == 404\n\n# SCENARIO_ID: e8e5ad3d-2d44-4800-ba7c-ad80ed2924a0\ndef test_request_status_for_non_existent_run_id(page: Page):\n    page.goto(BASE_URL)\n    invalid_id = \"invalid-id-123\"\n    \n    response = page.request.get(f\"{BASE_URL}/api/pipeline/status/{invalid_id}\")\n    \n    assert response.status == 404\n    error_detail = response.json().get(\"detail\", \"\")\n    assert \"not found\" in error_detail or \"completed\" in error_detail\n\n# SCENARIO_ID: 43508f90-4a68-4504-bdd8-0f8db29428f7\ndef test_submit_pipeline_run_with_malformed_payload(page: Page):\n    # TODO: resolve PipelineRunRequest\n    pytest.skip(\"payload model 'PipelineRunRequest' not in context\")\n\n# SCENARIO_ID: 035f06c2-06e4-47bf-bcbb-d0d304135908\ndef test_retrieve_missing_report_detail(page: Page):\n    page.goto(BASE_URL)\n    \n    response = page.request.get(f\"{BASE_URL}/api/reports/does-not-exist\")\n    assert response.status == 404\n\n# SCENARIO_ID: fd35f8d3-9a0f-4419-822c-6da2d2ee3eaf\ndef test_handle_corrupted_report_json_file(page: Page):\n    page.goto(BASE_URL)\n    # Precondition requires a file specifically named to trigger the parse error\n    corrupted_id = \"corrupted-test-case\"\n    \n    response = page.request.get(f\"{BASE_URL}/api/reports/{corrupted_id}\")\n    \n    # Based on Snippet 3 try/except block returning 500\n    if response.status == 500:\n        error_detail = response.json().get(\"detail\", \"\")\n        assert \"Failed to parse report\" in error_detail\n    else:\n        pytest.skip(\"Environment does not have a corrupted JSON file setup\")\n\n# SCENARIO_ID: 0a2eb61e-c5b2-4415-9ed5-5259ad13ce12\ndef test_sse_connection_persistence_and_reconnection(page: Page):\n    # SSE testing with sync Playwright requires specialized streaming handling\n    # Usually requires page.evaluate with EventSource which is context-dependent\n    pytest.skip(\"SSE stream validation requires async or browser-side EventSource execution\")\n\n# SCENARIO_ID: 230c9a5b-553f-49bb-8513-9e0ecaeea1e7\ndef test_path_traversal_probe_on_report_retrieval(page: Page):\n    page.goto(BASE_URL)\n    traversal_path = \"../../etc/passwd\"\n    \n    response = page.request.get(f\"{BASE_URL}/api/reports/{traversal_path}\")\n    \n    # Security expectation is 404 or 422 to prevent directory traversal\n    assert response.status in [404, 422]\n\"",
+      "scenario_ids": [
+        "bff83136-e7a3-411e-8ed0-2208eb7e8c60",
+        "fc735f2b-e6a4-48c6-8bdf-d76af9e40907",
+        "b0c155d2-4621-4c93-bae8-8e98c5406c21",
+        "1cf96fe3-00c2-4201-a384-de528ef1d36f",
+        "e8e5ad3d-2d44-4800-ba7c-ad80ed2924a0",
+        "43508f90-4a68-4504-bdd8-0f8db29428f7",
+        "035f06c2-06e4-47bf-bcbb-d0d304135908",
+        "fd35f8d3-9a0f-4419-822c-6da2d2ee3eaf",
+        "0a2eb61e-c5b2-4415-9ed5-5259ad13ce12",
+        "230c9a5b-553f-49bb-8513-9e0ecaeea1e7"
+      ],
+      "generated_at": "2026-03-14T23:29:01.640461"
+    }
+  ],
+  "execution_results": [],
+  "heal_results": [],
+  "error": null
+}
