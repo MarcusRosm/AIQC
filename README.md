@@ -36,7 +36,7 @@ Developer PR → CI Trigger → Diff Analyzer (Step 1)
 
 ```bash
 # 1. Pull required models
-ollama pull granite4:latest
+ollama pull granite4:3b
 ollama pull bge-m3
 
 # 2. Install Python deps
@@ -149,7 +149,7 @@ So: **test generation works universally. Test execution requires the target app 
 
 | Component | What it does | Port |
 |-----------|-------------|------|
-| **Ollama** | Serves the LLM (`granite4:latest`) and embedding model (`bge-m3`). Already running on your machine. | `11434` |
+| **Ollama** | Serves the LLM (`granite4:3b`) and embedding model (`bge-m3`). Already running on your machine. | `11434` |
 | **FastAPI backend** (`uv run python main.py`) | Orchestrates the full pipeline. Receives diffs via REST, streams SSE events, saves reports. | `8000` |
 | **ChromaDB** | Runs embedded inside the FastAPI process — no separate server needed. Stores repo context vectors in `./data/chroma`. | *(in-process)* |
 | **React frontend** (`npm run dev`) | Dashboard UI. Connects to the FastAPI backend via the Vite proxy. | `5173` |
@@ -204,10 +204,10 @@ The workflow fires on every `pull_request`. The CI:
 4. Posts healing suggestions as a PR comment
 
 ### Key requirement: Ollama in CI
-Ollama must be reachable from the CI runner. The workflow currently uses a **Docker service container** (`ollama/ollama:latest`). On GitHub Actions free runners this will work, but pulling large models (like `granite4:latest`) in CI is slow. Options:
+Ollama must be reachable from the CI runner. The workflow currently uses a **Docker service container** (`ollama/ollama:latest`). On GitHub Actions free runners this will work, but pulling large models (like `granite4:3b`) in CI is slow. Options:
 
 1. **Use a self-hosted GitHub runner** on a machine where Ollama is pre-installed (fastest)
-2. **Use a smaller/faster model** — swap `granite4:latest` for `qwen2.5:1.5b` or `phi3:mini` via the `OLLAMA_LLM_MODEL` env var for CI speed
+2. **Use a smaller/faster model** — swap `granite4:3b` for `qwen2.5:1.5b` or `phi3:mini` via the `OLLAMA_LLM_MODEL` env var for CI speed
 3. **Point to a remote Ollama instance** via `OLLAMA_BASE_URL` secret pointing to a cloud VM
 
 ---
